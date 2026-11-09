@@ -137,13 +137,22 @@ function handleRecipe(b) {
   } else {
     const url = String(b.url || "").trim();
     if (!/^https?:\/\/\S+$/i.test(url) || url.length > 2000) return json({ ok: false, message: "That doesn't look like a web link." });
-    let res;
-    try {
-      res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9" } });
-    } catch (err) {
-      return json({ ok: false, message: "Couldn't open that page. Paste the ingredients instead." });
+    let res, why = "";
+    // Try like a phone browser first, then plain (some setups reject custom headers).
+    const tries = [
+      { muteHttpExceptions: true, followRedirects: true, headers: {
+          "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9" } },
+      { muteHttpExceptions: true, followRedirects: true }
+    ];
+    for (let i = 0; i < tries.length && !res; i++) {
+      try { res = UrlFetchApp.fetch(url, tries[i]); } catch (err) { why = String(err && err.message || err); console.log("Recipe fetch failed: " + why); }
+    }
+    if (!res) {
+      const perm = /permission|authoriz/i.test(why);
+      return json({ ok: false, message: perm
+        ? "The Google script isn't allowed to open web pages yet. In the script editor, run testRecipe once and tap Allow. (" + why.slice(0, 120) + ")"
+        : "Couldn't open that page (" + why.slice(0, 120) + "). Paste the ingredients instead." });
     }
     if (res.getResponseCode() >= 400) return json({ ok: false, message: "That site wouldn't let us read the page (error " + res.getResponseCode() + "). Paste the ingredients instead." });
     const found = parseRecipe(res.getContentText());
@@ -481,6 +490,12 @@ function validDate(s) { return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.te
 
 function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Run this from the editor (pick testRecipe, tap Run). It asks for any missing permission, then shows the result in the log. */
+function testRecipe() {
+  const out = handleRecipe({ url: "https://www.gimmesomeoven.com/5-ingredient-easy-chili-recipe" });
+  Logger.log(out.getContent());
 }
 
 /** Run this once from the editor to test: View \u2192 Logs shows your upcoming events. */
