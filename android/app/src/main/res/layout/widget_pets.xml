@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pets_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="11dp"
+    android:background="@drawable/widget_bg">
+    <TextView
+        android:id="@+id/pets_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="3dp"
+        android:paddingBottom="3dp"
+        android:text="PETS"
+        android:textColor="#8A98B8"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.1"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/cell_dog"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="3dp"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/cell_dog">
+            <TextView
+                android:id="@+id/label_dog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🐶 Fed dog"
+                android:textColor="#22D3EE"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/last_dog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Not yet today"
+                android:textColor="#8A98B8"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/cell_cat"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="3dp"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/cell_cat">
+            <TextView
+                android:id="@+id/label_cat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🐱 Fed cat"
+                android:textColor="#A78BFA"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/last_cat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Not yet today"
+                android:textColor="#8A98B8"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/cell_out"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="3dp"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/cell_out">
+            <TextView
+                android:id="@+id/label_out"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🦮 Dogs out"
+                android:textColor="#F59E0B"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/last_out"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Not yet today"
+                android:textColor="#8A98B8"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/cell_litter"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_margin="3dp"
+            android:orientation="vertical"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:background="@drawable/cell_litter">
+            <TextView
+                android:id="@+id/label_litter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🧹 Litterbox"
+                android:textColor="#34D399"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/last_litter"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Not yet today"
+                android:textColor="#8A98B8"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

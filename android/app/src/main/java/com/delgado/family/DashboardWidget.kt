@@ -44,19 +44,11 @@ class DashboardWidget : AppWidgetProvider() {
         private fun ids(ctx: Context): IntArray =
             AppWidgetManager.getInstance(ctx).getAppWidgetIds(ComponentName(ctx, DashboardWidget::class.java))
 
-        /** Fetch fresh data and redraw every widget. Blocking — call from a background thread. */
-        fun refreshNow(ctx: Context) {
-            val app = ctx.applicationContext
-            if (ids(app).isEmpty()) return
-            val today = ymd(Date())
-            val data = Api.post(app, JSONObject().put("action", "state").put("date", today).put("days", 1))
-            val offline = data == null
-            val json = data ?: Prefs.lastWidgetJson(app)?.let { runCatching { JSONObject(it) }.getOrNull() }
-            if (data != null) Prefs.setLastWidgetJson(app, data.toString())
-            draw(app, json, offline)
-        }
+        /** Fetch fresh data and redraw every widget (all three kinds). Blocking — call from a background thread. */
+        fun refreshNow(ctx: Context) = Widgets.refreshAll(ctx)
 
-        private fun draw(ctx: Context, data: JSONObject?, offline: Boolean) {
+        fun draw(ctx: Context, data: JSONObject?, offline: Boolean) {
+            if (ids(ctx).isEmpty()) return
             val v = RemoteViews(ctx.packageName, R.layout.widget_dashboard)
             val immutable = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             v.setOnClickPendingIntent(R.id.widget_root,

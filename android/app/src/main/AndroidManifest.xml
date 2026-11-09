@@ -49,5 +49,23 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/dashboard_widget_info" />
         </receiver>
+
+        <receiver android:name=".NapWidget" android:exported="false" android:label="Sebastian's nap">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nap_widget_info" />
+        </receiver>
+
+        <receiver android:name=".PetsWidget" android:exported="false" android:label="Pets log">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/pets_widget_info" />
+        </receiver>
     </application>
 </manifest>

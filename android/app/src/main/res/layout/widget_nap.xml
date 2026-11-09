@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nap_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
+    <TextView
+        android:id="@+id/nap_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SEBASTIAN'S NAP"
+        android:textColor="#8A98B8"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.1" />
+    <TextView
+        android:id="@+id/nap_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="—"
+        android:textColor="#E8EEFB"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/nap_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#8A98B8"
+        android:textSize="12sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/nap_button"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:minHeight="44dp"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:text="Start nap"
+        android:textColor="#22D3EE"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="@drawable/btn_accent" />
+</LinearLayout>
