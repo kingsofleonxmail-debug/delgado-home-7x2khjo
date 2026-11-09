@@ -1,12 +1,16 @@
 /**
  * Delgado Family Dashboard \u2014 sync + calendar backend (Google Apps Script)
- * 1. Set FAMILY_CODE below.  2. Deploy \u2192 Web app \u2192 Execute as: Me, Who has access: Anyone
+ * 1. Add FAMILY_CODE etc. in Project Settings > Script Properties.  2. Deploy \u2192 Web app \u2192 Execute as: Me, Who has access: Anyone
  * After any edit: Deploy \u2192 Manage deployments \u2192 pencil \u2192 Version: New version \u2192 Deploy (same link).
  */
 
-// Pick a family code (a few random words works well, e.g. "purple-taco-river-42").
-// Everyone types it once on each phone/TV. Change it here any time to lock old devices out.
-const FAMILY_CODE = "CHANGE-ME";
+// Your private settings live in Project Settings > Script Properties (not in this code):
+//   FAMILY_CODE        - required, the code everyone types once
+//   NTFY_TOPIC         - your ntfy topic for alerts
+//   ANTHROPIC_API_KEY  - optional, turns on smart recipe cleanup
+//   ALERT_EMAIL        - optional backup email for alerts
+const SETTINGS = PropertiesService.getScriptProperties();
+const FAMILY_CODE = SETTINGS.getProperty("FAMILY_CODE") || "CHANGE-ME";
 
 // School tracker \u2014 same order as the dashboard. Task 0 = Left for school, task 1 = Arrived at school.
 const KIDS = ["Julien", "Vinny"];
@@ -16,17 +20,15 @@ const ARRIVED_TASK = 1;
 const SCHOOL_WINDOW = { start: "06:30", end: "09:00" };
 
 // Arrival alerts \u2014 fill in one or both. Leave "" to switch that alert off.
-// NTFY_TOPIC: install the free "ntfy" app on your phone, subscribe to a long random topic name, paste it here.
-// ALERT_EMAIL: any email address (Gmail on your phone will notify you).
-const NTFY_TOPIC = "";
-const ALERT_EMAIL = "";
+const NTFY_TOPIC = SETTINGS.getProperty("NTFY_TOPIC") || "";
+const ALERT_EMAIL = SETTINGS.getProperty("ALERT_EMAIL") || "";
 
 // Mom's work \u2014 locations must match the dashboard and the Android app
 const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
 
 // Recipe \u2192 shopping list. Paste an Anthropic API key here for smart cleanup (store-friendly names,
 // combined duplicates, sorted by aisle). Leave "" and it still works with basic cleanup.
-const ANTHROPIC_API_KEY = "";
+const ANTHROPIC_API_KEY = SETTINGS.getProperty("ANTHROPIC_API_KEY") || "";
 const CLEANUP_MODEL = "claude-haiku-5-5";
 const SKIP_INGREDIENTS = ["salt", "pepper", "water"];   // never added (bell peppers etc. are kept)
 const AISLES = ["Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Spices & Baking", "Frozen", "Drinks", "Other"];
