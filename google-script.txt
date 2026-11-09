@@ -117,13 +117,42 @@ function setTick(date, k, t, v) {
 }
 
 function sendAlert(msg) {
-  try {
-    if (NTFY_TOPIC) UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC),
-      { method: "post", payload: msg, headers: { Title: "School tracker", Tags: "school" }, muteHttpExceptions: true });
-    if (ALERT_EMAIL) MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n\u2014 Delgado Family Dashboard");
-  } catch (err) {
-    console.log("Alert failed: " + err);
+  const results = [];
+  if (NTFY_TOPIC) {
+    // ntfy can briefly refuse busy shared servers (code 429), so retry a few times before giving up.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      let code = 0, body = "";
+      try {
+        const res = UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC),
+          { method: "post", payload: msg, muteHttpExceptions: true,
+            headers: { Title: "Delgado Family", Tags: "house", Priority: "high" } });
+        code = res.getResponseCode(); body = res.getContentText().slice(0, 120);
+      } catch (err) { body = String(err).slice(0, 120); }
+      results.push("ntfy try " + attempt + ": " + (code || "error") + (code === 200 ? "" : " " + body));
+      if (code === 200) break;
+      Utilities.sleep(attempt * 2500);
+    }
   }
+  if (ALERT_EMAIL) {
+    try { MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n\u2014 Delgado Family Dashboard"); results.push("email: sent"); }
+    catch (err) { results.push("email: " + String(err).slice(0, 120)); }
+  }
+  // Keep the last 15 alert attempts so problems can be checked (see Script Properties: alert-log).
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const log = JSON.parse(props.getProperty("alert-log") || "[]");
+    log.unshift(fmtTime(Date.now()) + " | " + msg.slice(0, 60) + " | " + results.join(" ; "));
+    props.setProperty("alert-log", JSON.stringify(log.slice(0, 15)));
+  } catch (err) {}
+  console.log(results.join(" ; "));
+  return results;
+}
+
+/** Run from the editor (pick testAlert, tap Run) to send a test alert and see what ntfy answered in the log. */
+function testAlert() {
+  Logger.log("NTFY_TOPIC is " + (NTFY_TOPIC ? "set (" + NTFY_TOPIC.length + " letters)" : "MISSING") +
+             ", ALERT_EMAIL is " + (ALERT_EMAIL ? "set" : "not set"));
+  Logger.log(sendAlert("\uD83D\uDD14 Test alert from the Delgado Family Dashboard").join("\n"));
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
