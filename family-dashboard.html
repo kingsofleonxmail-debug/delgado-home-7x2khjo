@@ -248,11 +248,28 @@ body{
 .btn.small{font-size:.72rem;padding:.4rem .7rem}
 .bins-in{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}
 
+.lock{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(5,9,20,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.lock[hidden]{display:none}
+.lockbox{width:min(100%,22rem);background:linear-gradient(180deg, var(--panel2), var(--panel));border:1px solid var(--line2);border-radius:var(--radius);padding:1.6rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.lockbox .logo{margin:0 auto}
+.lockbox input{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--text);font:inherit;font-size:1rem;padding:.75rem .85rem;border-radius:var(--inner);outline:none;text-align:center;letter-spacing:.08em}
+.lockbox input:focus{border-color:rgba(var(--accent-rgb),.7);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.15)}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
 </head>
 <body>
+<div class="lock" id="lock" hidden>
+  <form class="lockbox" id="lockForm" autocomplete="off">
+    <div class="logo" id="lockLogo"></div>
+    <div class="pt" style="margin-top:1rem">Enter your family code</div>
+    <div class="ps" style="margin:.35rem 0 1rem">Only needed once on each phone or TV.</div>
+    <input id="lockIn" type="password" placeholder="Family code" aria-label="Family code">
+    <button class="btn primary" type="submit" style="width:100%;margin-top:.7rem">Unlock</button>
+    <div class="ps" id="lockMsg" style="margin-top:.7rem;color:var(--warm)"></div>
+  </form>
+</div>
 <div class="wrap">
   <header class="top">
     <div class="brand">
@@ -389,6 +406,7 @@ const theme = new URLSearchParams(location.search).get("theme") || CONFIG.theme;
 document.documentElement.dataset.theme = theme;
 $("logo").innerHTML = svg("home");
 $("calIc").innerHTML = svg("cal");
+$("lockLogo").innerHTML = svg("home");
 $("bname").textContent = CONFIG.familyName;
 $("fName").textContent = `${CONFIG.familyName} · ${CONFIG.location.name}`;
 $("locName").textContent = CONFIG.location.name;
@@ -625,7 +643,7 @@ async function sendOp(o){
   if(o.op.startsWith("shop")) renderShop(); else renderLogs();
   if(!CONFIG.syncUrl) return;
   pending++;
-  try{ const r = await fetch(CONFIG.syncUrl, { method:"POST", body: JSON.stringify(o) }); await r.json(); setSync(true); }
+  try{ await api(o); setSync(true); }
   catch(e){ setSync(false); }
   finally{ pending--; }
   pullState();
@@ -817,13 +835,39 @@ $("shopList").addEventListener("click", e => {
 $("shopClear").addEventListener("click", () => sendOp({ op:"shopClear" }));
 
 /* ---------- Sync (Google Apps Script) ---------- */
+// Every request is a POST carrying the family code, so the code never appears in a link.
+// text/plain body avoids a CORS preflight, which Apps Script can't answer.
+let KEY = store.get("fd-key") || "";
+async function api(body){
+  if(!KEY){ showLock(); throw new Error("locked"); }
+  const r = await fetch(CONFIG.syncUrl, { method:"POST", body: JSON.stringify({ ...body, key: KEY }) });
+  const data = await r.json();
+  if(data.error === "bad key"){ KEY = ""; store.set("fd-key", ""); showLock("That code didn't work — try again."); throw new Error("bad key"); }
+  return data;
+}
+function showLock(msg){
+  if(!$("lock").hidden && !msg) return;
+  $("lock").hidden = false;
+  $("lockMsg").textContent = msg || "";
+  setTimeout(() => $("lockIn").focus(), 50);
+}
+$("lockForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const code = $("lockIn").value.trim();
+  if(!code) return;
+  KEY = code; $("lockMsg").textContent = "Checking…";
+  try{
+    await api({ action:"events" });
+    store.set("fd-key", KEY); $("lock").hidden = true; $("lockIn").value = "";
+    pullCalendar(); pullState();
+  }catch(err){ if(KEY) $("lockMsg").textContent = "Can't reach the family server — check the connection."; }
+});
+
 async function pushTick(k, t, v){
   if(!CONFIG.syncUrl) return;
   pending++;
   try{
-    // text/plain body avoids a CORS preflight, which Apps Script can't answer
-    const r = await fetch(CONFIG.syncUrl, { method:"POST", body: JSON.stringify({ date: ymd(new Date()), k, t, v }) });
-    const data = await r.json();
+    const data = await api({ date: ymd(new Date()), k, t, v });
     if(data.checks && pending === 1){ store.set(checkKey(), data.checks); renderChecklist(); }
     setSync(true);
   }catch(e){ setSync(false); }
@@ -832,8 +876,7 @@ async function pushTick(k, t, v){
 async function pullState(){
   if(!CONFIG.syncUrl || pending) return;
   try{
-    const r = await fetch(`${CONFIG.syncUrl}?action=state&date=${ymd(new Date())}&days=8`);
-    const data = await r.json();
+    const data = await api({ action:"state", date: ymd(new Date()), days: 8 });
     if(pending) return;
     const c = JSON.stringify(data.checks || {}), wasC = JSON.stringify(store.get(checkKey()) || {});
     if(c !== wasC){ store.set(checkKey(), data.checks || {}); renderChecklist(); }
@@ -845,8 +888,7 @@ async function pullState(){
 async function pullCalendar(){
   if(!CONFIG.syncUrl) return;
   try{
-    const r = await fetch(`${CONFIG.syncUrl}?action=events`);
-    const data = await r.json();
+    const data = await api({ action:"events" });
     if(Array.isArray(data.events)){ CAL = data.events; store.set("fd-cal", CAL); }
     setSync(true);
   }catch(e){ CAL = CAL || store.get("fd-cal"); setSync(false); }
