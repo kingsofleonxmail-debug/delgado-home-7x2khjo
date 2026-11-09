@@ -1,0 +1,302 @@
+/**
+ * Delgado Family Dashboard — sync + calendar backend (Google Apps Script)
+ * 1. Set FAMILY_CODE below.  2. Deploy → Web app → Execute as: Me, Who has access: Anyone
+ * After any edit: Deploy → Manage deployments → pencil → Version: New version → Deploy (same link).
+ */
+
+// Pick a family code (a few random words works well, e.g. "purple-taco-river-42").
+// Everyone types it once on each phone/TV. Change it here any time to lock old devices out.
+const FAMILY_CODE = "CHANGE-ME";
+
+// School tracker — same order as the dashboard. Task 0 = Left for school, task 1 = Arrived at school.
+const KIDS = ["Julien", "Vinny"];
+const TASK_NAMES = ["left for school", "arrived at school"];
+const ARRIVED_TASK = 1;
+// Automatic ticks from the iPhones only count on weekdays in this window (dashboard taps always count).
+const SCHOOL_WINDOW = { start: "06:30", end: "09:00" };
+
+// Arrival alerts — fill in one or both. Leave "" to switch that alert off.
+// NTFY_TOPIC: install the free "ntfy" app on your phone, subscribe to a long random topic name, paste it here.
+// ALERT_EMAIL: any email address (Gmail on your phone will notify you).
+const NTFY_TOPIC = "";
+const ALERT_EMAIL = "";
+
+// Mom's work — locations must match the dashboard and the Android app
+const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
+
+const CALENDAR_IDS = ["primary"];   // e.g. ["primary", "family123@group.calendar.google.com"]
+const DAYS_AHEAD = 21;
+const KEEP_DAYS = 7;                // old checklist days are cleaned up after this
+const KEEP_LOG_DAYS = 35;           // pets + nap history kept this long
+const LOG_TYPES = ["dogfed", "catfed", "dogsout", "litter", "nap"];
+
+// Visiting the link in a browser just confirms the script is running. Nothing is readable without the code.
+function doGet() {
+  return json({ status: "running", locked: true });
+}
+
+function doPost(e) {
+  let body;
+  try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ error: "bad json" }); }
+  if (FAMILY_CODE === "CHANGE-ME" || typeof body.key !== "string" || body.key !== FAMILY_CODE) {
+    Utilities.sleep(1500);                       // slows down anyone guessing codes
+    return json({ error: "bad key" });
+  }
+  if (body.action === "events") return json({ events: getEvents() });
+  if (body.action === "state") {
+    const days = Math.min(Number(body.days) || 8, 31);
+    return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
+                  shifts: readShifts(), work: readWork(body.date) });
+  }
+  if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
+  if (body.op && String(body.op).indexOf("shift") === 0) return handleShiftOp(body);
+  if (body.op) return handleLogOp(body);
+
+  // iPhone Shortcuts / automations: {"key", "action":"check", "k": kid, "t": task}
+  if (body.action === "check") return handleCheck(body);
+  if (body.action === "work") return handleWork(body);
+
+  // Dashboard taps: {date, k, t, v} — v is the tick time (ms) or false to untick
+  const date = body.date, k = Number(body.k), t = Number(body.t);
+  if (!validDate(date) || !(k >= 0 && k < 20) || !(t >= 0 && t < 50)) return json({ error: "bad input" });
+  const v = typeof body.v === "number" ? body.v : (body.v ? Date.now() : false);
+  return json({ checks: setTick(date, k, t, v) });
+}
+
+function handleCheck(b) {
+  const k = Number(b.k), t = Number(b.t);
+  if (!(k >= 0 && k < KIDS.length) || !(t >= 0 && t < TASK_NAMES.length)) return json({ ok: false, message: "Unknown kid or task" });
+  const tz = Session.getScriptTimeZone(), now = new Date();
+  const day = Number(Utilities.formatDate(now, tz, "u")), hm = Utilities.formatDate(now, tz, "HH:mm");
+  if (day > 5 || hm < SCHOOL_WINDOW.start || hm > SCHOOL_WINDOW.end) {
+    return json({ ok: false, message: "Not school-run time — nothing ticked" });
+  }
+  const date = Utilities.formatDate(now, tz, "yyyy-MM-dd");
+  const existing = (readChecks(date)[k] || [])[t];
+  if (existing) return json({ ok: true, message: KIDS[k] + " already " + TASK_NAMES[t] + " at " + fmtTime(existing) });
+  setTick(date, k, t, now.getTime());
+  return json({ ok: true, message: KIDS[k] + " " + TASK_NAMES[t] + " at " + fmtTime(now.getTime()) });
+}
+
+function setTick(date, k, t, v) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  let checks, wasDone;
+  try {
+    checks = readChecks(date);
+    checks[k] = checks[k] || [];
+    wasDone = !!checks[k][t];
+    checks[k][t] = v;
+    PropertiesService.getScriptProperties().setProperty("checks-" + date, JSON.stringify(checks));
+    cleanup();
+  } finally {
+    lock.releaseLock();
+  }
+  if (t === ARRIVED_TASK && v && !wasDone && KIDS[k]) {
+    sendAlert("🏫 " + KIDS[k] + " arrived at school at " + fmtTime(typeof v === "number" ? v : Date.now()));
+  }
+  return checks;
+}
+
+function sendAlert(msg) {
+  try {
+    if (NTFY_TOPIC) UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC),
+      { method: "post", payload: msg, headers: { Title: "School tracker", Tags: "school" }, muteHttpExceptions: true });
+    if (ALERT_EMAIL) MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n— Delgado Family Dashboard");
+  } catch (err) {
+    console.log("Alert failed: " + err);
+  }
+}
+
+function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
+
+// ---------- Mom's shifts ----------
+function readShifts() {
+  const today = Utilities.formatDate(new Date(Date.now() - 864e5), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return JSON.parse(PropertiesService.getScriptProperties().getProperty("shifts") || "[]")
+    .filter(function (x) { return x.date >= today; });       // drop old shifts automatically
+}
+
+function handleShiftOp(b) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    let list = readShifts();
+    if (b.op === "shiftAdd") {
+      const x = b.shift || {}, hm = /^\d{2}:\d{2}$/;
+      if (typeof x.id !== "string" || x.id.length > 40 || !validDate(x.date) || !hm.test(x.start) || !hm.test(x.end) ||
+          WORK_LOCATIONS.indexOf(x.loc) < 0 || typeof x.who !== "string" || x.who.length > 30) return json({ error: "bad shift" });
+      if (list.length >= 60) return json({ error: "too many shifts" });
+      if (!list.some(function (y) { return y.id === x.id; }))
+        list.push({ id: x.id, date: x.date, start: x.start, end: x.end, loc: x.loc, who: x.who, ts: Date.now() });
+    } else if (b.op === "shiftDel") {
+      list = list.filter(function (y) { return y.id !== b.id; });
+    } else return json({ error: "bad op" });
+    list.sort(function (a, c) { return (a.date + a.start).localeCompare(c.date + c.start); });
+    PropertiesService.getScriptProperties().setProperty("shifts", JSON.stringify(list));
+    return json({ ok: true, shifts: list });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---------- Mom's work arrive / leave (sent by her Android phone) ----------
+function readWork(date) {
+  if (!validDate(date)) return [];
+  return JSON.parse(PropertiesService.getScriptProperties().getProperty("work-" + date) || "[]");
+}
+
+function handleWork(b) {
+  if (["arrive", "leave"].indexOf(b.event) < 0 || WORK_LOCATIONS.indexOf(b.loc) < 0) return json({ ok: false, message: "bad work event" });
+  const tz = Session.getScriptTimeZone(), now = Date.now(), date = Utilities.formatDate(new Date(now), tz, "yyyy-MM-dd");
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  let skip = false;
+  try {
+    const list = readWork(date);
+    const last = list[list.length - 1];
+    // ignore GPS flapping: same event at the same place within 10 minutes
+    if (last && last.event === b.event && last.loc === b.loc && now - last.ts < 10 * 60000) skip = true;
+    else {
+      list.push({ ts: now, event: b.event, loc: b.loc });
+      PropertiesService.getScriptProperties().setProperty("work-" + date, JSON.stringify(list));
+      cleanup();
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  if (skip) return json({ ok: true, message: "duplicate ignored" });
+  const shift = readShifts().filter(function (x) { return x.date === date && x.loc === b.loc; })[0];
+  const note = shift ? " (shift " + niceTime(shift.start) + "–" + niceTime(shift.end) + ")" : " (no shift on the schedule)";
+  const msg = (b.event === "arrive" ? "🏥 Mom arrived at " : "🚗 Mom left ") + b.loc + " at " + fmtTime(now) + note;
+  sendAlert(msg);
+  return json({ ok: true, message: msg });
+}
+
+function niceTime(hm) {
+  const p = hm.split(":").map(Number), h = p[0] % 12 || 12;
+  return h + ":" + (p[1] < 10 ? "0" : "") + p[1] + (p[0] < 12 ? "a" : "p");
+}
+
+function handleLogOp(b) {
+  if (!validDate(b.date)) return json({ error: "bad date" });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const key = "log-" + b.date, props = PropertiesService.getScriptProperties();
+    const arr = JSON.parse(props.getProperty(key) || "[]");
+    let out = arr;
+    if (b.op === "log") {
+      const en = b.entry || {};
+      if (typeof en.id !== "string" || en.id.length > 40 || LOG_TYPES.indexOf(en.type) < 0 ||
+          typeof en.who !== "string" || en.who.length > 30 || typeof en.ts !== "number" ||
+          !(en.end === null || typeof en.end === "number")) return json({ error: "bad entry" });
+      if (!arr.some(function (x) { return x.id === en.id; })) arr.push({ id: en.id, type: en.type, who: en.who, ts: en.ts, end: en.end });
+    } else if (b.op === "unlog") {
+      out = arr.filter(function (x) { return x.id !== b.id; });
+    } else if (b.op === "update") {
+      if (typeof b.end !== "number") return json({ error: "bad end" });
+      arr.forEach(function (x) { if (x.id === b.id) x.end = b.end; });
+    } else return json({ error: "bad op" });
+    props.setProperty(key, JSON.stringify(out));
+    cleanup();
+    return json({ ok: true });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function readShop() {
+  return JSON.parse(PropertiesService.getScriptProperties().getProperty("shop") || "[]");
+}
+
+function handleShopOp(b) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    let list = readShop();
+    if (b.op === "shopAdd") {
+      const it = b.item || {};
+      if (typeof it.id !== "string" || it.id.length > 40 || typeof it.text !== "string" || !it.text.trim() ||
+          it.text.length > 80 || typeof it.who !== "string" || it.who.length > 30 || typeof it.ts !== "number") return json({ error: "bad item" });
+      if (list.length >= 150) return json({ error: "list full" });
+      if (!list.some(function (x) { return x.id === it.id; })) list.push({ id: it.id, text: it.text.trim(), who: it.who, ts: it.ts, done: false });
+    } else if (b.op === "shopToggle") {
+      list.forEach(function (x) { if (x.id === b.id) x.done = !!b.done; });
+    } else if (b.op === "shopDel") {
+      list = list.filter(function (x) { return x.id !== b.id; });
+    } else if (b.op === "shopClear") {
+      list = list.filter(function (x) { return !x.done; });
+    } else return json({ error: "bad op" });
+    PropertiesService.getScriptProperties().setProperty("shop", JSON.stringify(list));
+    return json({ ok: true });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function readLogs(date, days) {
+  if (!validDate(date)) return {};
+  const p = date.split("-").map(Number), props = PropertiesService.getScriptProperties(), out = {};
+  for (let i = days - 1; i >= 0; i--) {
+    const d = Utilities.formatDate(new Date(Date.UTC(p[0], p[1] - 1, p[2] - i)), "UTC", "yyyy-MM-dd");
+    out[d] = JSON.parse(props.getProperty("log-" + d) || "[]");
+  }
+  return out;
+}
+
+function readChecks(date) {
+  if (!validDate(date)) return {};
+  const raw = PropertiesService.getScriptProperties().getProperty("checks-" + date);
+  return raw ? JSON.parse(raw) : {};
+}
+
+function getEvents() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get("events");
+  if (hit) return JSON.parse(hit);
+
+  const tz = Session.getScriptTimeZone();
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + DAYS_AHEAD * 864e5);
+  const out = [];
+
+  CALENDAR_IDS.forEach(function (id) {
+    const cal = id === "primary" ? CalendarApp.getDefaultCalendar() : CalendarApp.getCalendarById(id);
+    if (!cal) return;
+    cal.getEvents(start, end).forEach(function (ev) {
+      if (ev.isAllDayEvent()) {
+        out.push({
+          title: ev.getTitle(), allDay: true,
+          start: Utilities.formatDate(ev.getAllDayStartDate(), tz, "yyyy-MM-dd"),
+          end: Utilities.formatDate(ev.getAllDayEndDate(), tz, "yyyy-MM-dd")
+        });
+      } else {
+        out.push({ title: ev.getTitle(), allDay: false, start: ev.getStartTime().getTime(), end: ev.getEndTime().getTime() });
+      }
+    });
+  });
+
+  cache.put("events", JSON.stringify(out), 300);   // 5-minute cache keeps it fast
+  return out;
+}
+
+function cleanup() {
+  const props = PropertiesService.getScriptProperties();
+  const cutoff = Utilities.formatDate(new Date(Date.now() - KEEP_DAYS * 864e5), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  const logCutoff = Utilities.formatDate(new Date(Date.now() - KEEP_LOG_DAYS * 864e5), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  props.getKeys().forEach(function (key) {
+    if (key.indexOf("checks-") === 0 && key.slice(7) < cutoff) props.deleteProperty(key);
+    if (key.indexOf("log-") === 0 && key.slice(4) < logCutoff) props.deleteProperty(key);
+    if (key.indexOf("work-") === 0 && key.slice(5) < logCutoff) props.deleteProperty(key);
+  });
+}
+
+function validDate(s) { return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
+function json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Run this once from the editor to test: View → Logs shows your upcoming events. */
+function testEvents() { Logger.log(JSON.stringify(getEvents(), null, 2)); }
