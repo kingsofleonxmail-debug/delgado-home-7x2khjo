@@ -34,7 +34,17 @@ const CONFIG = {
   ],
 
   // Who can log pets and naps (first one is the default on a new screen)
-  people: ["Dad", "Julien", "Vinny"],
+  people: ["Dad", "Mom", "Julien", "Vinny"],
+
+  // Mom's work schedule (keep locations matching the Google script and the Android app)
+  mom: {
+    name: "Mom",
+    locations: ["Wilkes-Barre", "Kingston"],
+    shifts: [ { label: "7:00a – 3:30p", start: "07:00", end: "15:30" },
+              { label: "3:00p – 11:30p", start: "15:00", end: "23:30" } ],
+    editors: ["Dad", "Mom"],      // who can add or delete shifts on the dashboard
+    daysAhead: 14
+  },
 
   // Nap tracker
   napper: "Sebastian",
@@ -266,6 +276,25 @@ body{
 .solo .box{width:1.7rem;height:1.7rem}
 .solo .kids{max-width:34rem;margin:0 auto;display:block}
 
+/* Mom's schedule */
+.momstat{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;margin-bottom:1rem}
+.momstat .v{font-size:1.6rem;font-weight:800;line-height:1.1}
+.momstat .v.on{color:var(--accent);text-shadow:0 0 18px rgba(var(--accent-rgb),.45)}
+.momstat .d{font-size:.8rem;color:var(--muted)}
+.momgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:1rem}
+@media(max-width:899px){.momgrid{grid-template-columns:1fr}}
+.shiftform{display:grid;gap:.6rem}
+.shiftform label,.customtimes label{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;display:grid;gap:.3rem}
+.shiftform input,.shiftform select{background:var(--bg);border:1px solid var(--line2);color:var(--text);font:inherit;font-size:.9rem;padding:.55rem .6rem;border-radius:8px;color-scheme:dark;width:100%}
+.shiftform input:focus,.shiftform select:focus{outline:none;border-color:rgba(var(--accent-rgb),.7)}
+.customtimes{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.customtimes[hidden],.shiftform[hidden]{display:none}
+.seg-sm button{font-size:.68rem;padding:.25rem .55rem}
+.shrow .t b{font-weight:800}
+.shrow.today{background:rgba(var(--accent-rgb),.06);border-radius:8px;padding-left:.5rem;padding-right:.3rem}
+.loc-wb{color:var(--accent);border-color:rgba(var(--accent-rgb),.45);background:rgba(var(--accent-rgb),.1)}
+.loc-k{color:var(--accent2);border-color:color-mix(in srgb, var(--accent2) 45%, transparent);background:color-mix(in srgb, var(--accent2) 10%, transparent)}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
@@ -290,7 +319,7 @@ body{
     </div>
     <div class="kpis">
       <div class="kpi"><div class="kl">Right now</div><div class="kv"><span id="kNow">—</span><span class="tag acc" id="kCond"></span></div></div>
-      <div class="kpi"><div class="kl">Today high / low</div><div class="kv"><span id="kHiLo">—</span></div></div>
+      <div class="kpi"><div class="kl">Mom today</div><div class="kv"><span id="kMom">—</span><span class="tag" id="kMomTag"></span></div></div>
       <div class="kpi"><div class="kl">Bins</div><div class="kv"><span id="kBins">—</span><span class="tag" id="kBinsTag"></span></div></div>
       <div class="kpi"><div class="kl" id="kCdLabel">Countdown</div><div class="kv"><span id="kCd">—</span><span class="tag cool" id="kCdTag"></span></div></div>
     </div>
@@ -322,13 +351,28 @@ body{
       <table class="tbl"><thead><tr><th>Day</th><th>Pickup</th><th>Status</th></tr></thead><tbody id="binRows"></tbody></table>
     </section>
 
-    <section class="panel s8">
-      <div class="ph"><div><div class="pt">Pets</div><div class="ps">Tap to log — time-stamped and synced on every screen</div></div><span class="tag acc" id="petTotal"></span></div>
-      <div class="whorow">Logging as <div class="seg" id="who"></div></div>
-      <div class="acts" id="acts"></div>
-      <div class="subgrid">
-        <div class="subp"><div class="sh"><span>Today</span><span id="dayCount"></span></div><svg class="mini" id="petDay"></svg><div id="petRecent" style="margin-top:.4rem"></div></div>
-        <div class="subp"><div class="sh"><span>Last 7 days</span><span id="weekCount"></span></div><svg class="mini" id="petWeek"></svg><div class="tags" id="byWho"></div></div>
+    <section class="panel s8" id="momPanel">
+      <div class="ph"><div><div class="pt"><span id="momName"></span>'s work schedule</div><div class="ps">Next 2 weeks — synced everywhere</div></div><span class="tag" id="momTag"></span></div>
+      <div class="momstat" id="momStat"></div>
+      <div class="momgrid">
+        <div class="subp">
+          <div class="sh"><span>Add a shift</span><span class="seg seg-sm" data-whoseg></span></div>
+          <form class="shiftform" id="shiftForm" autocomplete="off">
+            <label>Date<input type="date" id="shDate" required></label>
+            <label>Shift<select id="shShift"></select></label>
+            <div class="customtimes" id="shCustom" hidden>
+              <label>Start<input type="time" id="shStart"></label>
+              <label>End<input type="time" id="shEnd"></label>
+            </div>
+            <label>Location<select id="shLoc"></select></label>
+            <button class="btn primary" type="submit">Add shift</button>
+          </form>
+          <div class="ps" id="shNote" style="margin-top:.6rem"></div>
+        </div>
+        <div class="subp">
+          <div class="sh"><span>Upcoming shifts</span><span id="shCount"></span></div>
+          <div id="shList"></div>
+        </div>
       </div>
     </section>
 
@@ -347,8 +391,13 @@ body{
     </section>
 
     <section class="panel s8">
-      <div class="ph"><div><div class="pt">Weekend preview</div><div class="ps">Forecast and plans for Saturday &amp; Sunday</div></div></div>
-      <div class="wk" id="weekend"></div>
+      <div class="ph"><div><div class="pt">Pets</div><div class="ps">Tap to log — time-stamped and synced on every screen</div></div><span class="tag acc" id="petTotal"></span></div>
+      <div class="whorow">Logging as <div class="seg" id="who"></div></div>
+      <div class="acts" id="acts"></div>
+      <div class="subgrid">
+        <div class="subp"><div class="sh"><span>Today</span><span id="dayCount"></span></div><svg class="mini" id="petDay"></svg><div id="petRecent" style="margin-top:.4rem"></div></div>
+        <div class="subp"><div class="sh"><span>Last 7 days</span><span id="weekCount"></span></div><svg class="mini" id="petWeek"></svg><div class="tags" id="byWho"></div></div>
+      </div>
     </section>
 
     <section class="panel s4">
@@ -360,9 +409,14 @@ body{
       <div class="shop" id="shopList"></div>
       <div class="shopfoot"><button type="button" class="btn small" id="shopClear" hidden></button></div>
     </section>
+
+    <section class="panel">
+      <div class="ph"><div><div class="pt">Weekend preview</div><div class="ps">Forecast and plans for Saturday &amp; Sunday</div></div></div>
+      <div class="wk" id="weekend"></div>
+    </section>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09b</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09c</span></footer>
 </div>
 
 <script>
@@ -427,7 +481,13 @@ document.title = `${CONFIG.familyName} Dashboard`;
 let WX = null, CAL = null;
 
 /* ---------- Helpers ---------- */
-function eventsOn(d){
+function eventsOn(d){ return calEventsOn(d).concat(shiftEventsOn(d)).sort((a,b) => (a.allDay===b.allDay ? (a.time||"").localeCompare(b.time||"") : (a.allDay ? -1 : 1))); }
+function shiftEventsOn(d){
+  if(typeof SHIFTS === "undefined") return [];
+  return SHIFTS.filter(x => x.date === ymd(d)).map(x => ({ title: `${CONFIG.mom.name} works · ${x.loc} (${hmShort(x.start)}–${hmShort(x.end)})`, time: x.start, allDay: false }));
+}
+const hmShort = hm => { let [h,m] = hm.split(":").map(Number); const ap = h<12 ? "a" : "p"; h = h%12||12; return `${h}:${pad(m)}${ap}`; };
+function calEventsOn(d){
   const key = ymd(d);
   if(CAL){
     const dayStart = parseYmd(key).getTime(), dayEnd = dayStart + 864e5;
@@ -525,6 +585,7 @@ function renderDay(){
   renderChecklist();
   renderLogs();
   renderShop();
+  renderMom();
 }
 
 /* ---------- Weather + chart ---------- */
@@ -545,7 +606,7 @@ function renderWeather(){
   $("wxDesc").textContent = t ? `${desc} · high ${deg(t.hi)}, low ${deg(t.lo)}` : desc;
   $("kNow").textContent = deg(c.temperature_2m);
   $("kCond").textContent = desc;
-  if(t) $("kHiLo").innerHTML = `${deg(t.hi)} <span style="color:var(--muted);font-weight:600">/ ${deg(t.lo)}</span>`;
+
 
   // Chart: next 7 days
   const D = WX.daily, n = Math.min(7, D.time.length);
@@ -648,12 +709,16 @@ const isNarrow = () => innerWidth < 600;
 function lastDays(n){ const out = [], now = new Date(); for(let i=n-1;i>=0;i--){ const d = new Date(now); d.setDate(now.getDate()-i); out.push(d); } return out; }
 const dayLogs = d => LOGS[ymd(d)] || [];
 
-let SHOP = store.get("fd-shop") || [];          // [ {id, text, who, ts, done} ]
+let SHOP = store.get("fd-shop") || [];
+let SHIFTS = store.get("fd-shifts") || [];       // [ {id, date, start, end, loc, who} ]
+let WORK = store.get("fd-work") || { date:"", list:[] };   // today's arrive/leave from Mom's phone          // [ {id, text, who, ts, done} ]
 function applyOp(o){
   if(o.op === "shopAdd"){ if(!SHOP.some(i => i.id === o.item.id)) SHOP.push(o.item); return; }
   if(o.op === "shopToggle"){ const i = SHOP.find(i => i.id === o.id); if(i) i.done = o.done; return; }
   if(o.op === "shopDel"){ SHOP = SHOP.filter(i => i.id !== o.id); return; }
   if(o.op === "shopClear"){ SHOP = SHOP.filter(i => !i.done); return; }
+  if(o.op === "shiftAdd"){ if(!SHIFTS.some(x => x.id === o.shift.id)) SHIFTS.push(o.shift); SHIFTS.sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start)); return; }
+  if(o.op === "shiftDel"){ SHIFTS = SHIFTS.filter(x => x.id !== o.id); return; }
   const arr = LOGS[o.date] = LOGS[o.date] || [];
   if(o.op === "log"){ if(!arr.some(e => e.id === o.entry.id)) arr.push(o.entry); }
   else if(o.op === "unlog"){ LOGS[o.date] = arr.filter(e => e.id !== o.id); }
@@ -661,8 +726,10 @@ function applyOp(o){
 }
 function pruneLogs(){ const keep = new Set(lastDays(8).map(ymd)); for(const k in LOGS) if(!keep.has(k)) delete LOGS[k]; }
 async function sendOp(o){
-  applyOp(o); pruneLogs(); store.set("fd-logs", LOGS); store.set("fd-shop", SHOP);
-  if(o.op.startsWith("shop")) renderShop(); else renderLogs();
+  applyOp(o); pruneLogs(); store.set("fd-logs", LOGS); store.set("fd-shop", SHOP); store.set("fd-shifts", SHIFTS);
+  if(o.op.startsWith("shop")) renderShop();
+  else if(o.op.startsWith("shift")){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
+  else renderLogs();
   if(!CONFIG.syncUrl) return;
   pending++;
   try{ await api(o); setSync(true); }
@@ -674,12 +741,14 @@ async function sendOp(o){
 function renderLogs(){ renderWho(); renderPets(); renderNap(); }
 
 function renderWho(){
-  $("who").innerHTML = CONFIG.people.map(p => `<button type="button" class="${p===who?"on":""}" data-who="${esc(p)}" aria-pressed="${p===who}">${esc(p)}</button>`).join("");
+  const html = CONFIG.people.map(p => `<button type="button" class="${p===who?"on":""}" data-who="${esc(p)}" aria-pressed="${p===who}">${esc(p)}</button>`).join("");
+  document.querySelectorAll("#who, [data-whoseg]").forEach(el => el.innerHTML = html);
 }
-$("who").addEventListener("click", e => {
+document.addEventListener("click", e => {
   const b = e.target.closest("[data-who]"); if(!b) return;
-  who = b.dataset.who; store.set("fd-who", who); renderWho();
-  const f = $("who").querySelector(`[data-who="${CSS.escape(who)}"]`); if(f) f.focus();
+  const seg = b.parentElement;
+  who = b.dataset.who; store.set("fd-who", who); renderWho(); renderMom();
+  const f = seg.querySelector(`[data-who="${CSS.escape(who)}"]`); if(f) f.focus();
 });
 
 function renderPets(){
@@ -826,6 +895,76 @@ $("napForm").addEventListener("submit", e => {
   $("napForm").hidden = true;
 });
 
+/* ---------- Mom's schedule ---------- */
+const canEditShifts = () => CONFIG.mom.editors.includes(who);
+const locClass = l => l === CONFIG.mom.locations[0] ? "loc-wb" : "loc-k";
+function fmtDay(key){
+  const d = parseYmd(key), t = dayDiff(new Date(), d);
+  const base = `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}`;
+  return t === 0 ? `Today · ${base}` : t === 1 ? `Tomorrow · ${base}` : base;
+}
+function renderMom(){
+  const M = CONFIG.mom, now = new Date(), todayKey = ymd(now);
+  $("momName").textContent = M.name;
+  const todays = SHIFTS.filter(x => x.date === todayKey);
+  const work = WORK.date === todayKey ? WORK.list : [];
+  const last = work[work.length-1];
+  let v, d, tag, tagCls;
+  if(last && last.event === "arrive"){ v = `At work`; d = `${last.loc} since ${tstr(last.ts)}`; tag = "At work"; tagCls = "good"; }
+  else if(last){ v = `Left work`; d = `Left ${last.loc} at ${tstr(last.ts)}`; tag = "Left work"; tagCls = "warm"; }
+  else if(todays.length){ const x = todays[0]; v = `${hmShort(x.start)} – ${hmShort(x.end)}`; d = `Working today · ${x.loc}`; tag = "Working today"; tagCls = "acc"; }
+  else { v = "Off today"; d = "No shift on the schedule"; tag = "Off"; tagCls = "cool"; }
+  if(last && todays.length) d += ` · shift ${hmShort(todays[0].start)}–${hmShort(todays[0].end)}`;
+  $("momStat").innerHTML = `<div><div class="v ${last && last.event==="arrive" ? "on" : ""}">${esc(v)}</div><div class="d">${esc(d)}</div></div>`;
+  $("momTag").textContent = tag; $("momTag").className = "tag " + tagCls;
+  $("kMom").textContent = todays.length ? `${hmShort(todays[0].start)}–${hmShort(todays[0].end)}` : (last ? v : "Off");
+  $("kMomTag").textContent = last ? tag : (todays.length ? todays[0].loc : "");
+  $("kMomTag").className = "tag " + (last ? tagCls : "acc");
+  $("kMomTag").hidden = !$("kMomTag").textContent;
+
+  // Upcoming list
+  const end = new Date(now); end.setDate(now.getDate() + M.daysAhead - 1);
+  const upcoming = SHIFTS.filter(x => x.date >= todayKey && x.date <= ymd(end));
+  const edit = canEditShifts();
+  $("shCount").innerHTML = `<b>${upcoming.length}</b>&nbsp;shift${upcoming.length===1?"":"s"}`;
+  $("shList").innerHTML = upcoming.length ? upcoming.map(x => `<div class="row shrow${x.date===todayKey?" today":""}">
+      <span class="t"><b>${fmtDay(x.date)}</b><br><span class="who">${hmShort(x.start)} – ${hmShort(x.end)}${x.end < x.start ? " (ends next day)" : ""}</span></span>
+      <span class="tag ${locClass(x.loc)}">${esc(x.loc)}</span>
+      ${edit ? `<button type="button" class="x" data-shiftdel="${esc(x.id)}" aria-label="Delete shift">×</button>` : ""}</div>`).join("")
+    : `<div class="empty">No shifts in the next 2 weeks.</div>`;
+
+  // Form: only Dad or Mom can add
+  $("shiftForm").hidden = !edit;
+  $("shNote").textContent = edit ? `Adding as ${who}.` : `Pick Dad or Mom above to add or delete shifts.`;
+  $("shDate").min = todayKey; $("shDate").max = ymd(end);
+  if(!$("shDate").value) $("shDate").value = todayKey;
+}
+function setupShiftForm(){
+  const M = CONFIG.mom;
+  $("shShift").innerHTML = M.shifts.map((x,i) => `<option value="${i}">${esc(x.label)}</option>`).join("") + `<option value="custom">Custom times…</option>`;
+  $("shLoc").innerHTML = M.locations.map(l => `<option>${esc(l)}</option>`).join("");
+  $("shShift").addEventListener("change", () => { const c = $("shShift").value === "custom"; $("shCustom").hidden = !c; $("shStart").required = c; $("shEnd").required = c; });
+}
+setupShiftForm();
+$("shiftForm").addEventListener("submit", e => {
+  e.preventDefault();
+  if(!canEditShifts()) return;
+  const sel = $("shShift").value, preset = CONFIG.mom.shifts[+sel];
+  const start = sel === "custom" ? $("shStart").value : preset.start;
+  const end = sel === "custom" ? $("shEnd").value : preset.end;
+  if(!start || !end || start === end){ $("shEnd").setCustomValidity("Pick a start and end time"); $("shEnd").reportValidity(); return; }
+  const date = $("shDate").value;
+  if(SHIFTS.some(x => x.date === date && x.start === start && x.loc === $("shLoc").value)){ $("shNote").textContent = "That shift is already on the schedule."; return; }
+  sendOp({ op:"shiftAdd", shift: { id: uid(), date, start, end, loc: $("shLoc").value, who } });
+  $("shNote").textContent = `Added ${fmtDay(date)} · ${hmShort(start)}–${hmShort(end)} · ${$("shLoc").value}.`;
+});
+$("shEnd").addEventListener("input", () => $("shEnd").setCustomValidity(""));
+$("shList").addEventListener("click", e => {
+  const b = e.target.closest("[data-shiftdel]"); if(!b || !canEditShifts()) return;
+  const x = SHIFTS.find(y => y.id === b.dataset.shiftdel); if(!x) return;
+  if(confirm(`Delete ${fmtDay(x.date)} · ${hmShort(x.start)}–${hmShort(x.end)} at ${x.loc}?`)) sendOp({ op:"shiftDel", id: x.id });
+});
+
 /* ---------- Shopping list ---------- */
 function renderShop(){
   const items = SHOP.slice().sort((a,b) => (a.done - b.done) || (a.ts - b.ts));
@@ -904,6 +1043,11 @@ async function pullState(){
     if(c !== wasC){ store.set(checkKey(), data.checks || {}); renderChecklist(); }
     if(data.logs && JSON.stringify(data.logs) !== JSON.stringify(LOGS)){ LOGS = data.logs; store.set("fd-logs", LOGS); renderLogs(); }
     if(Array.isArray(data.shop) && JSON.stringify(data.shop) !== JSON.stringify(SHOP)){ SHOP = data.shop; store.set("fd-shop", SHOP); renderShop(); }
+    let momChanged = false;
+    if(Array.isArray(data.shifts) && JSON.stringify(data.shifts) !== JSON.stringify(SHIFTS)){ SHIFTS = data.shifts; store.set("fd-shifts", SHIFTS); momChanged = true; }
+    if(Array.isArray(data.work)){ const w = { date: ymd(new Date()), list: data.work };
+      if(JSON.stringify(w) !== JSON.stringify(WORK)){ WORK = w; store.set("fd-work", WORK); momChanged = true; } }
+    if(momChanged){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
     setSync(true);
   }catch(e){ setSync(false); }
 }
