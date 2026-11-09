@@ -24,6 +24,13 @@ const ALERT_EMAIL = "";
 // Mom's work — locations must match the dashboard and the Android app
 const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
 
+// Countdowns start with these until Dad or Mom change them on the dashboard
+const DEFAULT_COUNTDOWNS = [
+  { id: "d0", name: "Thanksgiving", date: "2026-11-26" },
+  { id: "d1", name: "Christmas", date: "2026-12-25" },
+  { id: "d2", name: "New Year's Day", date: "2027-01-01" }
+];
+
 const CALENDAR_IDS = ["primary"];   // e.g. ["primary", "family123@group.calendar.google.com"]
 const DAYS_AHEAD = 21;
 const KEEP_DAYS = 7;                // old checklist days are cleaned up after this
@@ -46,10 +53,11 @@ function doPost(e) {
   if (body.action === "state") {
     const days = Math.min(Number(body.days) || 8, 31);
     return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
-                  shifts: readShifts(), work: readWork(body.date) });
+                  shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns() });
   }
   if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
   if (body.op && String(body.op).indexOf("shift") === 0) return handleShiftOp(body);
+  if (body.op && String(body.op).indexOf("cd") === 0) return handleCountdownOp(body);
   if (body.op) return handleLogOp(body);
 
   // iPhone Shortcuts / automations: {"key", "action":"check", "k": kid, "t": task}
@@ -109,6 +117,35 @@ function sendAlert(msg) {
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
+
+// ---------- Countdowns ----------
+function readCountdowns() {
+  const raw = PropertiesService.getScriptProperties().getProperty("countdowns");
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return (raw ? JSON.parse(raw) : DEFAULT_COUNTDOWNS).filter(function (c) { return c.date >= today; });
+}
+
+function handleCountdownOp(b) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    let list = readCountdowns();
+    if (b.op === "cdAdd") {
+      const c = b.item || {};
+      if (typeof c.id !== "string" || c.id.length > 40 || typeof c.name !== "string" || !c.name.trim() ||
+          c.name.length > 40 || !validDate(c.date)) return json({ error: "bad countdown" });
+      if (list.length >= 20) return json({ error: "too many countdowns" });
+      if (!list.some(function (x) { return x.id === c.id; })) list.push({ id: c.id, name: c.name.trim(), date: c.date });
+    } else if (b.op === "cdDel") {
+      list = list.filter(function (x) { return x.id !== b.id; });
+    } else return json({ error: "bad op" });
+    list.sort(function (a, c) { return a.date.localeCompare(c.date); });
+    PropertiesService.getScriptProperties().setProperty("countdowns", JSON.stringify(list));
+    return json({ ok: true, countdowns: list });
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 // ---------- Mom's shifts ----------
 function readShifts() {

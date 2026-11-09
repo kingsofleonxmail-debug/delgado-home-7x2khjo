@@ -295,6 +295,23 @@ body{
 .loc-wb{color:var(--accent);border-color:rgba(var(--accent-rgb),.45);background:rgba(var(--accent-rgb),.1)}
 .loc-k{color:var(--accent2);border-color:color-mix(in srgb, var(--accent2) 45%, transparent);background:color-mix(in srgb, var(--accent2) 10%, transparent)}
 
+/* Quote of the day */
+.quote{display:flex;gap:1.4rem;align-items:center;position:relative;overflow:hidden}
+.quote::after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(var(--accent-rgb),.10), transparent 70%);pointer-events:none}
+.emblem{flex:none;width:5.6rem;height:5.6rem;border-radius:50%;display:grid;place-items:center;color:var(--accent);
+  background:radial-gradient(circle at 50% 40%, rgba(var(--accent-rgb),.16), rgba(var(--accent-rgb),.03));border:1px solid rgba(var(--accent-rgb),.45);
+  box-shadow:0 0 28px rgba(var(--accent-rgb),.22), inset 0 0 18px rgba(var(--accent-rgb),.12)}
+.emblem svg{width:62%;height:62%;filter:drop-shadow(0 0 6px rgba(var(--accent-rgb),.6))}
+.qbody{flex:1;min-width:0}
+.quote blockquote{font-size:1.45rem;font-weight:600;line-height:1.35;letter-spacing:-.01em;margin:.2rem 0 .55rem}
+.quote blockquote::before{content:"“";color:var(--accent);margin-right:.08em}
+.quote blockquote::after{content:"”";color:var(--accent);margin-left:.05em}
+.qwho{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}
+.qwho b{color:var(--text);font-weight:800}
+@media(max-width:600px){.quote{flex-direction:column;align-items:flex-start;gap:.9rem}.emblem{width:4.2rem;height:4.2rem}.quote blockquote{font-size:1.15rem}}
+.cdrow .big{font-size:1.15rem;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cdrow.first .big{font-size:1.5rem;text-shadow:0 0 16px rgba(var(--accent-rgb),.45)}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
@@ -327,18 +344,13 @@ body{
   </header>
 
   <main class="grid">
-    <section class="panel s8">
-      <div class="ph">
-        <div><div class="pt">7-day temperature</div><div class="ps">Live forecast for <span id="locName"></span></div></div>
-        <div class="legend"><span><i style="background:var(--accent)"></i>Highs</span><span><i style="background:var(--dim)"></i>Lows</span></div>
+    <section class="panel quote" id="quotePanel">
+      <div class="emblem" id="qEmblem" aria-hidden="true"></div>
+      <div class="qbody">
+        <div class="sh"><span>Quote of the day</span><span id="qDate"></span></div>
+        <blockquote id="qText"></blockquote>
+        <div class="qwho"><b id="qWho"></b><span id="qRole"></span><span class="tag" id="qAttr" hidden>Attributed</span></div>
       </div>
-      <div class="wxnow"><span id="wxIc"></span><span class="t" id="wxTemp">—</span><span class="d" id="wxDesc">Loading forecast…</span></div>
-      <svg class="chart" id="chart" viewBox="0 0 720 185"></svg>
-    </section>
-
-    <section class="panel s4">
-      <div class="ph"><div><div class="pt">Today's plans</div><div class="ps" id="planSrc">From your calendar</div></div></div>
-      <div id="today"></div>
     </section>
 
     <section class="panel s8 am checklist">
@@ -410,13 +422,41 @@ body{
       <div class="shopfoot"><button type="button" class="btn small" id="shopClear" hidden></button></div>
     </section>
 
-    <section class="panel">
+    <section class="panel s8">
       <div class="ph"><div><div class="pt">Weekend preview</div><div class="ps">Forecast and plans for Saturday &amp; Sunday</div></div></div>
       <div class="wk" id="weekend"></div>
     </section>
+
+    <section class="panel s4">
+      <div class="ph"><div><div class="pt">Today's plans</div><div class="ps" id="planSrc">From your calendar</div></div></div>
+      <div id="today"></div>
+    </section>
+
+    <section class="panel s8">
+      <div class="ph">
+        <div><div class="pt">7-day temperature</div><div class="ps">Live forecast for <span id="locName"></span></div></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>Highs</span><span><i style="background:var(--dim)"></i>Lows</span></div>
+      </div>
+      <div class="wxnow"><span id="wxIc"></span><span class="t" id="wxTemp">—</span><span class="d" id="wxDesc">Loading forecast…</span></div>
+      <svg class="chart" id="chart" viewBox="0 0 720 185"></svg>
+    </section>
+
+    <section class="panel s4" id="cdPanel">
+      <div class="ph"><div><div class="pt">Countdowns</div><div class="ps">Set by Dad &amp; Mom — the nearest shows at the top</div></div></div>
+      <div id="cdList"></div>
+      <div class="subp" style="margin-top:.9rem">
+        <div class="sh"><span>Add a countdown</span><span class="seg seg-sm" data-whoseg></span></div>
+        <form class="shiftform" id="cdForm" autocomplete="off">
+          <label>What are we counting to?<input id="cdName" maxlength="40" placeholder="Disney trip, Julien's birthday…" required></label>
+          <label>Date<input type="date" id="cdDate" required></label>
+          <button class="btn primary" type="submit">Add countdown</button>
+        </form>
+        <div class="ps" id="cdNote" style="margin-top:.6rem"></div>
+      </div>
+    </section>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09c</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09d</span></footer>
 </div>
 
 <script>
@@ -568,12 +608,7 @@ function renderDay(){
     return `<tr><td>${DAYS_LONG[b.day]}</td><td>${esc(b.items)}</td><td>${st}</td></tr>`;
   }).join("");
 
-  // Countdown KPI
-  const next = CONFIG.countdowns.map(c => ({...c, d: dayDiff(now, parseYmd(c.date))})).filter(c => c.d >= 0).sort((a,b)=>a.d-b.d)[0];
-  if(next){
-    $("kCd").textContent = next.d===0 ? "Today!" : `${next.d} day${next.d===1?"":"s"}`;
-    $("kCdTag").textContent = next.name;
-  }
+  renderCountdowns();
 
   // Today's plans
   $("today").innerHTML = evRows(eventsOn(now));
@@ -586,6 +621,7 @@ function renderDay(){
   renderLogs();
   renderShop();
   renderMom();
+  renderQuote();
 }
 
 /* ---------- Weather + chart ---------- */
@@ -719,6 +755,8 @@ function applyOp(o){
   if(o.op === "shopClear"){ SHOP = SHOP.filter(i => !i.done); return; }
   if(o.op === "shiftAdd"){ if(!SHIFTS.some(x => x.id === o.shift.id)) SHIFTS.push(o.shift); SHIFTS.sort((a,b) => (a.date+a.start).localeCompare(b.date+b.start)); return; }
   if(o.op === "shiftDel"){ SHIFTS = SHIFTS.filter(x => x.id !== o.id); return; }
+  if(o.op === "cdAdd"){ if(!COUNTDOWNS.some(x => x.id === o.item.id)) COUNTDOWNS.push(o.item); return; }
+  if(o.op === "cdDel"){ COUNTDOWNS = COUNTDOWNS.filter(x => x.id !== o.id); return; }
   const arr = LOGS[o.date] = LOGS[o.date] || [];
   if(o.op === "log"){ if(!arr.some(e => e.id === o.entry.id)) arr.push(o.entry); }
   else if(o.op === "unlog"){ LOGS[o.date] = arr.filter(e => e.id !== o.id); }
@@ -726,8 +764,9 @@ function applyOp(o){
 }
 function pruneLogs(){ const keep = new Set(lastDays(8).map(ymd)); for(const k in LOGS) if(!keep.has(k)) delete LOGS[k]; }
 async function sendOp(o){
-  applyOp(o); pruneLogs(); store.set("fd-logs", LOGS); store.set("fd-shop", SHOP); store.set("fd-shifts", SHIFTS);
+  applyOp(o); pruneLogs(); store.set("fd-logs", LOGS); store.set("fd-shop", SHOP); store.set("fd-shifts", SHIFTS); store.set("fd-countdowns", COUNTDOWNS);
   if(o.op.startsWith("shop")) renderShop();
+  else if(o.op.startsWith("cd")) renderCountdowns();
   else if(o.op.startsWith("shift")){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
   else renderLogs();
   if(!CONFIG.syncUrl) return;
@@ -747,7 +786,7 @@ function renderWho(){
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-who]"); if(!b) return;
   const seg = b.parentElement;
-  who = b.dataset.who; store.set("fd-who", who); renderWho(); renderMom();
+  who = b.dataset.who; store.set("fd-who", who); renderWho(); renderMom(); renderCountdowns();
   const f = seg.querySelector(`[data-who="${CSS.escape(who)}"]`); if(f) f.focus();
 });
 
@@ -965,6 +1004,89 @@ $("shList").addEventListener("click", e => {
   if(confirm(`Delete ${fmtDay(x.date)} · ${hmShort(x.start)}–${hmShort(x.end)} at ${x.loc}?`)) sendOp({ op:"shiftDel", id: x.id });
 });
 
+/* ---------- Quote of the day ---------- */
+const EMBLEMS = {
+  napoleon: '<path d="M3 15c2.5-5 5.5-8 9-8s6.5 3 9 8c-3 1.4-6 2-9 2s-6-.6-9-2z"/><path d="M8.5 9.2c1-.9 2.2-1.4 3.5-1.4s2.5.5 3.5 1.4"/><circle cx="12" cy="11.5" r="1.6"/><path d="M5 16.5c2.2.9 4.5 1.3 7 1.3s4.8-.4 7-1.3"/>',
+  caesar:   '<path d="M7 19C3.5 15.5 3.5 8.5 7.5 5"/><path d="M17 19c3.5-3.5 3.5-10.5-.5-14"/><path d="M5.2 15.5l-2-.5M4.6 12l-2-.9M5 8.6l-1.6-1.4M6.6 6l-.9-1.9"/><path d="M18.8 15.5l2-.5M19.4 12l2-.9M19 8.6l1.6-1.4M17.4 6l.9-1.9"/><path d="M9.5 20.5h5"/>',
+  genghis:  '<path d="M6 3c7 3 7 15 0 18"/><path d="M6 3v18"/><path d="M4 12h17"/><path d="M18 9.5l3 2.5-3 2.5"/><path d="M4 12l-1.5-1.5M4 12l-1.5 1.5"/>',
+  alexander:'<circle cx="12" cy="12" r="2.2"/>' + Array.from({length:16}, (_,i) => { const a = i*Math.PI/8, r1 = 3.6, r2 = i%2 ? 7 : 9.6;
+    return `<path d="M${(12+Math.cos(a-.12)*r1).toFixed(2)} ${(12+Math.sin(a-.12)*r1).toFixed(2)} L${(12+Math.cos(a)*r2).toFixed(2)} ${(12+Math.sin(a)*r2).toFixed(2)} L${(12+Math.cos(a+.12)*r1).toFixed(2)} ${(12+Math.sin(a+.12)*r1).toFixed(2)}"/>`; }).join("")
+};
+const LEADERS = {
+  napoleon:  { name:"Napoleon Bonaparte", role:"Emperor of the French · 1769–1821" },
+  caesar:    { name:"Julius Caesar",      role:"Roman general & statesman · 100–44 BC" },
+  genghis:   { name:"Genghis Khan",       role:"Founder of the Mongol Empire · c. 1162–1227" },
+  alexander: { name:"Alexander the Great",role:"King of Macedon · 356–323 BC" }
+};
+// [leader, quote, attributed?] — "attributed" means it's widely credited to them but not found in their own writings
+const QUOTES = [
+  ["napoleon","Victory belongs to the most persevering.",true],
+  ["caesar","I came, I saw, I conquered.",false],
+  ["genghis","An action committed in anger is an action doomed to failure.",true],
+  ["alexander","There is nothing impossible to him who will try.",true],
+  ["napoleon","A leader is a dealer in hope.",true],
+  ["caesar","Men willingly believe what they wish.",false],
+  ["genghis","If you're afraid, don't do it. If you're doing it, don't be afraid.",true],
+  ["alexander","I am not afraid of an army of lions led by a sheep; I am afraid of an army of sheep led by a lion.",true],
+  ["napoleon","Take time to deliberate, but when the time for action comes, stop thinking and go in.",true],
+  ["caesar","The die is cast.",false],
+  ["genghis","Conquering the world on horseback is easy; it is dismounting and governing that is hard.",true],
+  ["alexander","Upon the conduct of each depends the fate of all.",true],
+  ["napoleon","Impossible is a word to be found only in the dictionary of fools.",true],
+  ["caesar","In war, great events are the result of small causes.",false],
+  ["genghis","Even when a friend does something you do not like, he continues to be your friend.",true],
+  ["alexander","I would rather live a short life of glory than a long one of obscurity.",true],
+  ["napoleon","Never interrupt your enemy when he is making a mistake.",true],
+  ["caesar","Experience is the teacher of all things.",false],
+  ["napoleon","Courage isn't having the strength to go on; it is going on when you don't have strength.",true],
+  ["alexander","With the right attitude, self-imposed limitations vanish.",true]
+];
+function renderQuote(){
+  const now = new Date();
+  const day = Math.floor((parseYmd(ymd(now)) - new Date(now.getFullYear(), 0, 0)) / 864e5);   // same quote on every screen today
+  const [who, text, attributed] = QUOTES[(day + now.getFullYear()) % QUOTES.length];
+  $("qEmblem").innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${EMBLEMS[who]}</svg>`;
+  $("qText").textContent = text;
+  $("qWho").textContent = LEADERS[who].name;
+  $("qRole").textContent = LEADERS[who].role;
+  $("qAttr").hidden = !attributed;
+  $("qAttr").className = "tag cool";
+  $("qDate").textContent = `${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
+}
+
+/* ---------- Countdowns (synced; Dad & Mom can edit) ---------- */
+let COUNTDOWNS = store.get("fd-countdowns") || CONFIG.countdowns.map((c,i) => ({ id:"d"+i, name:c.name, date:c.date }));
+function renderCountdowns(){
+  const now = new Date();
+  const list = COUNTDOWNS.map(c => ({...c, d: dayDiff(now, parseYmd(c.date))})).filter(c => c.d >= 0).sort((a,b) => a.d - b.d);
+  const next = list[0];
+  if(next){ $("kCd").textContent = next.d===0 ? "Today!" : `${next.d} day${next.d===1?"":"s"}`; $("kCdTag").textContent = next.name; $("kCdTag").hidden = false; }
+  else { $("kCd").textContent = "—"; $("kCdTag").hidden = true; }
+  const edit = canEditShifts();
+  $("cdList").innerHTML = list.length ? list.map((c,i) => `<div class="row cdrow${i===0?" first":""}">
+      <span class="t">${esc(c.name)}<br><span class="who">${fmtDay(c.date)}</span></span>
+      <span class="big">${c.d===0 ? "Today!" : `${c.d}<span style="font-size:.6em;color:var(--muted);font-weight:700"> day${c.d===1?"":"s"}</span>`}</span>
+      ${edit ? `<button type="button" class="x" data-cddel="${esc(c.id)}" aria-label="Delete countdown">×</button>` : ""}</div>`).join("")
+    : `<div class="empty">Nothing to count down to yet.</div>`;
+  $("cdForm").hidden = !edit;
+  $("cdNote").textContent = edit ? `Adding as ${who}.` : `Pick Dad or Mom to add or delete countdowns.`;
+  $("cdDate").min = ymd(new Date(now.getTime() + 864e5));
+}
+$("cdForm").addEventListener("submit", e => {
+  e.preventDefault();
+  if(!canEditShifts()) return;
+  const name = $("cdName").value.trim().slice(0, 40), date = $("cdDate").value;
+  if(!name || !date) return;
+  sendOp({ op:"cdAdd", item: { id: uid(), name, date, who } });
+  $("cdName").value = ""; $("cdDate").value = "";
+  $("cdNote").textContent = `Added "${name}".`;
+});
+$("cdList").addEventListener("click", e => {
+  const b = e.target.closest("[data-cddel]"); if(!b || !canEditShifts()) return;
+  const c = COUNTDOWNS.find(x => x.id === b.dataset.cddel);
+  if(c && confirm(`Delete the "${c.name}" countdown?`)) sendOp({ op:"cdDel", id: c.id });
+});
+
 /* ---------- Shopping list ---------- */
 function renderShop(){
   const items = SHOP.slice().sort((a,b) => (a.done - b.done) || (a.ts - b.ts));
@@ -1047,6 +1169,8 @@ async function pullState(){
     if(Array.isArray(data.shifts) && JSON.stringify(data.shifts) !== JSON.stringify(SHIFTS)){ SHIFTS = data.shifts; store.set("fd-shifts", SHIFTS); momChanged = true; }
     if(Array.isArray(data.work)){ const w = { date: ymd(new Date()), list: data.work };
       if(JSON.stringify(w) !== JSON.stringify(WORK)){ WORK = w; store.set("fd-work", WORK); momChanged = true; } }
+    if(Array.isArray(data.countdowns) && JSON.stringify(data.countdowns) !== JSON.stringify(COUNTDOWNS)){
+      COUNTDOWNS = data.countdowns; store.set("fd-countdowns", COUNTDOWNS); renderCountdowns(); }
     if(momChanged){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
     setSync(true);
   }catch(e){ setSync(false); }

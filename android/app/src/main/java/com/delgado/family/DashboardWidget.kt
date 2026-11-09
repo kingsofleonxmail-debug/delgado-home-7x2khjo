@@ -126,7 +126,18 @@ class DashboardWidget : AppWidgetProvider() {
             val shop = d.optJSONArray("shop") ?: JSONArray()
             val toBuy = (0 until shop.length()).count { !shop.getJSONObject(it).optBoolean("done") }
             val shopText = if (toBuy > 0) "🛒 $toBuy to buy" else null
-            return listOfNotNull(bins, shopText).joinToString(" · ").ifEmpty { "🛒 Shopping list is empty" }
+            val today = ymd(Date())
+            val cds = d.optJSONArray("countdowns") ?: JSONArray()
+            val next = (0 until cds.length()).map { cds.getJSONObject(it) }
+                .filter { it.optString("date") >= today }.minByOrNull { it.optString("date") }
+            val cdText = next?.let {
+                val days = runCatching {
+                    val f = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    ((f.parse(it.optString("date"))!!.time - f.parse(today)!!.time) / 86_400_000L + 0.5).toLong()
+                }.getOrDefault(-1L)
+                when { days == 0L -> "⭐ ${it.optString("name")} is today!"; days > 0 -> "⭐ $days days to ${it.optString("name")}"; else -> null }
+            }
+            return listOfNotNull(bins, shopText, cdText).joinToString(" · ").ifEmpty { "🛒 Shopping list is empty" }
         }
 
         // ---------- helpers ----------
