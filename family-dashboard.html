@@ -312,11 +312,50 @@ body{
 .cdrow .big{font-size:1.15rem;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cdrow.first .big{font-size:1.5rem;text-shadow:0 0 16px rgba(var(--accent-rgb),.45)}
 
+/* Recipe → shopping list */
+.rbox{width:min(100%,34rem);text-align:left;max-height:90vh;overflow:auto}
+.rhead{display:flex;justify-content:space-between;align-items:center}
+.rinput{width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--text);font:inherit;font-size:.9rem;padding:.6rem .75rem;border-radius:var(--inner);margin-bottom:.6rem;resize:vertical}
+.linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;padding:.3rem 0;margin-right:1rem}
+.linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.rstatus{min-height:1.2em;margin:.6rem 0}
+.rstatus.err{color:var(--warm)}
+.rtitle{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;font-size:1.05rem}
+.rtools{margin:.3rem 0 .4rem}
+.rsec{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:.8rem 0 .2rem}
+#rcpList .task{font-size:.92rem;padding:.45rem .2rem}
+#rcpList .dupnote{font-size:.7rem;color:var(--warm);white-space:nowrap}
+.shopsrc{display:block;font-size:.7rem;color:var(--dim);font-weight:500;text-decoration:none}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
 </head>
 <body>
+<div class="lock" id="rcp" hidden>
+  <div class="lockbox rbox" role="dialog" aria-modal="true" aria-labelledby="rcpTitle">
+    <div class="rhead"><div class="pt" id="rcpTitle">Add from a recipe</div><button type="button" class="x" id="rcpClose" aria-label="Close">×</button></div>
+    <div id="rcpStep1">
+      <form id="rcpUrlForm" autocomplete="off">
+        <div class="ps" style="margin:.35rem 0 .7rem">Paste a recipe link — we'll pull out the ingredients so you can pick what to add.</div>
+        <div class="addrow"><input id="rcpUrl" type="url" inputmode="url" placeholder="https://… recipe link" aria-label="Recipe link"><button class="btn primary" type="submit">Get ingredients</button></div>
+      </form>
+      <button type="button" class="linkbtn" id="rcpPasteToggle">Or paste the ingredients instead</button>
+      <form id="rcpTextForm" hidden autocomplete="off">
+        <input id="rcpName" maxlength="40" placeholder="Recipe name (optional)" class="rinput">
+        <textarea id="rcpText" rows="7" placeholder="One ingredient per line" class="rinput"></textarea>
+        <button class="btn primary" type="submit" style="width:100%">Get ingredients</button>
+      </form>
+    </div>
+    <div class="ps rstatus" id="rcpStatus"></div>
+    <div id="rcpStep2" hidden>
+      <div class="rtitle"><b id="rcpName2"></b><span class="tag" id="rcpSmart"></span></div>
+      <div class="rtools"><button type="button" class="linkbtn" id="rcpAll">Select all</button><button type="button" class="linkbtn" id="rcpNone">Select none</button><button type="button" class="linkbtn" id="rcpBack">Different recipe</button></div>
+      <div id="rcpList"></div>
+      <button type="button" class="btn primary" id="rcpAdd" style="width:100%;margin-top:.9rem"></button>
+    </div>
+  </div>
+</div>
 <div class="lock" id="lock" hidden>
   <form class="lockbox" id="lockForm" autocomplete="off">
     <div class="logo" id="lockLogo"></div>
@@ -418,6 +457,7 @@ body{
         <input id="shopIn" maxlength="80" placeholder="Add an item… (milk, dog food)" aria-label="Add an item">
         <button class="btn primary" type="submit">Add</button>
       </form>
+      <button type="button" class="btn small" id="rcpOpen" style="margin-bottom:.6rem">🍳 Add from a recipe</button>
       <div class="shop" id="shopList"></div>
       <div class="shopfoot"><button type="button" class="btn small" id="shopClear" hidden></button></div>
     </section>
@@ -456,7 +496,7 @@ body{
     </section>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09d</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09e</span></footer>
 </div>
 
 <script>
@@ -749,6 +789,7 @@ let SHOP = store.get("fd-shop") || [];
 let SHIFTS = store.get("fd-shifts") || [];       // [ {id, date, start, end, loc, who} ]
 let WORK = store.get("fd-work") || { date:"", list:[] };   // today's arrive/leave from Mom's phone          // [ {id, text, who, ts, done} ]
 function applyOp(o){
+  if(o.op === "shopAddMany"){ o.items.forEach(it => { if(!SHOP.some(i => i.id === it.id)) SHOP.push(it); }); return; }
   if(o.op === "shopAdd"){ if(!SHOP.some(i => i.id === o.item.id)) SHOP.push(o.item); return; }
   if(o.op === "shopToggle"){ const i = SHOP.find(i => i.id === o.id); if(i) i.done = o.done; return; }
   if(o.op === "shopDel"){ SHOP = SHOP.filter(i => i.id !== o.id); return; }
@@ -1087,14 +1128,107 @@ $("cdList").addEventListener("click", e => {
   if(c && confirm(`Delete the "${c.name}" countdown?`)) sendOp({ op:"cdDel", id: c.id });
 });
 
+/* ---------- Recipe → shopping list ---------- */
+let RCP = null;
+const normName = t => t.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+function isOnList(text){
+  const n = normName(text); if(n.length < 3) return false;
+  return SHOP.some(i => { if(i.done) return false; const m = normName(i.text); return m === n || (m.length >= 4 && (m.includes(n) || n.includes(m))); });
+}
+function openRecipe(url){
+  $("rcp").hidden = false;
+  $("rcpStep1").hidden = false; $("rcpStep2").hidden = true;
+  setRcpStatus("");
+  if(url){ $("rcpUrl").value = url; getRecipe({ url }); }
+  else setTimeout(() => $("rcpUrl").focus(), 50);
+}
+function closeRecipe(){ $("rcp").hidden = true; RCP = null; }
+function setRcpStatus(msg, err){ $("rcpStatus").textContent = msg; $("rcpStatus").classList.toggle("err", !!err); }
+async function getRecipe(body){
+  if(!CONFIG.syncUrl){ setRcpStatus("Recipes need the Google script connected.", true); return; }
+  setRcpStatus(body.url ? "Reading the recipe… (this can take a few seconds)" : "Tidying up the ingredients…");
+  try{
+    const data = await api({ action:"recipe", ...body });
+    if(!data.ok){
+      setRcpStatus(data.message || "Couldn't read that recipe.", true);
+      if(body.url){ $("rcpTextForm").hidden = false; $("rcpPasteToggle").hidden = true; }
+      return;
+    }
+    RCP = { title: data.title, smart: data.smart, items: data.items.map(i => { const dup = isOnList(i.text); return { ...i, on: !dup, dup }; }) };
+    setRcpStatus("");
+    renderRecipe();
+  }catch(e){ if(KEY) setRcpStatus("Couldn't reach the family server — check the connection.", true); }
+}
+function renderRecipe(){
+  $("rcpStep1").hidden = true; $("rcpStep2").hidden = false;
+  $("rcpName2").textContent = RCP.title;
+  $("rcpSmart").textContent = RCP.smart ? "Smart cleanup" : "Basic cleanup";
+  $("rcpSmart").className = "tag " + (RCP.smart ? "good" : "acc");
+  let lastSec = null;
+  $("rcpList").innerHTML = RCP.items.map((it, i) => {
+    const head = it.section && it.section !== lastSec ? `<div class="rsec">${esc(it.section)}</div>` : "";
+    lastSec = it.section;
+    return `${head}<button type="button" class="task${it.on ? " done" : ""}" data-ri="${i}" aria-pressed="${it.on}">
+      <span class="box">${svg("check")}</span><span class="txt" style="text-decoration:none;color:var(--text)">${esc(it.text)}</span>
+      ${it.dup ? `<span class="dupnote">already on list</span>` : ""}</button>`;
+  }).join("");
+  const n = RCP.items.filter(i => i.on).length;
+  $("rcpAdd").textContent = n ? `Add ${n} item${n===1?"":"s"} to the list` : "Pick at least one item";
+  $("rcpAdd").disabled = !n;
+}
+$("rcpOpen").addEventListener("click", () => openRecipe());
+$("rcpClose").addEventListener("click", closeRecipe);
+$("rcp").addEventListener("click", e => { if(e.target === $("rcp")) closeRecipe(); });
+document.addEventListener("keydown", e => { if(e.key === "Escape" && !$("rcp").hidden) closeRecipe(); });
+$("rcpUrlForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const m = $("rcpUrl").value.match(/https?:\/\/\S+/);
+  if(!m){ setRcpStatus("Paste a full link starting with https://", true); return; }
+  getRecipe({ url: m[0] });
+});
+$("rcpPasteToggle").addEventListener("click", () => { $("rcpTextForm").hidden = false; $("rcpPasteToggle").hidden = true; $("rcpText").focus(); });
+$("rcpTextForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const text = $("rcpText").value.trim();
+  if(!text){ setRcpStatus("Paste at least one ingredient.", true); return; }
+  getRecipe({ text: text.slice(0, 6000), title: $("rcpName").value.trim() });
+});
+$("rcpList").addEventListener("click", e => {
+  const b = e.target.closest("[data-ri]"); if(!b) return;
+  const it = RCP.items[+b.dataset.ri]; it.on = !it.on; renderRecipe();
+  const f = $("rcpList").querySelector(`[data-ri="${b.dataset.ri}"]`); if(f) f.focus();
+});
+$("rcpAll").addEventListener("click", () => { RCP.items.forEach(i => i.on = true); renderRecipe(); });
+$("rcpNone").addEventListener("click", () => { RCP.items.forEach(i => i.on = false); renderRecipe(); });
+$("rcpBack").addEventListener("click", () => { RCP = null; $("rcpUrl").value = ""; $("rcpStep2").hidden = true; $("rcpStep1").hidden = false; setRcpStatus(""); });
+$("rcpAdd").addEventListener("click", () => {
+  const picked = RCP.items.filter(i => i.on);
+  if(!picked.length) return;
+  const base = Date.now();
+  sendOp({ op:"shopAddMany", items: picked.map((i, k) => ({ id: uid(), text: i.text.slice(0, 80), who, ts: base + k, done: false, from: RCP.title.slice(0, 40), section: i.section || "" })) });
+  const n = picked.length, title = RCP.title;
+  closeRecipe();
+  $("shopIn").placeholder = `Added ${n} item${n===1?"":"s"} from ${title}`;
+});
+// Opened from a share (app, iPhone shortcut): ?recipe=<link>
+(() => {
+  const q = new URLSearchParams(location.search), link = q.get("recipe");
+  if(!link) return;
+  q.delete("recipe");
+  try{ history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "")); }catch(e){}
+  setTimeout(() => openRecipe(link), 300);
+})();
+
 /* ---------- Shopping list ---------- */
 function renderShop(){
-  const items = SHOP.slice().sort((a,b) => (a.done - b.done) || (a.ts - b.ts));
+  const AISLE_ORDER = ["Produce","Meat & Seafood","Dairy & Eggs","Bakery","Pantry","Spices & Baking","Frozen","Drinks","Other",""];
+  const sec = i => { const k = AISLE_ORDER.indexOf(i.section || ""); return k < 0 ? 99 : k; };
+  const items = SHOP.slice().sort((a,b) => (a.done - b.done) || (sec(a) - sec(b)) || (a.ts - b.ts));
   const left = SHOP.filter(i => !i.done).length, got = SHOP.length - left;
   $("shopCount").textContent = left ? `${left} to buy` : "All done";
   $("shopList").innerHTML = items.length ? items.map(i => `<div class="row">
       <button type="button" class="task${i.done?" done":""}" data-shop="${esc(i.id)}" aria-pressed="${!!i.done}">
-        <span class="box">${svg("check")}</span><span class="txt">${esc(i.text)}</span></button>
+        <span class="box">${svg("check")}</span><span class="txt">${esc(i.text)}${i.from ? `<span class="shopsrc">for ${esc(i.from)}</span>` : ""}</span></button>
       <span class="who">${esc(i.who)}</span>
       <button type="button" class="x" data-shopdel="${esc(i.id)}" aria-label="Remove ${esc(i.text)}">×</button></div>`).join("")
     : `<div class="empty">The list is empty — add the first item.</div>`;

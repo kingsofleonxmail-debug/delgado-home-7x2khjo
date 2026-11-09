@@ -13,6 +13,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.TextView
 import org.json.JSONObject
+import java.net.URLEncoder
 
 /** The full dashboard, full screen, plus a small gear for app settings. */
 class MainActivity : Activity() {
@@ -65,7 +66,12 @@ class MainActivity : Activity() {
         })
         setContentView(root)
 
-        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(Config.DASHBOARD_URL)
+        val shared = sharedRecipeUrl(intent)
+        when {
+            shared != null -> web.loadUrl(shared)
+            savedInstanceState != null -> web.restoreState(savedInstanceState)
+            else -> web.loadUrl(Config.DASHBOARD_URL)
+        }
         if (Prefs.key(this).isEmpty()) startActivity(Intent(this, SettingsActivity::class.java))
     }
 
@@ -83,6 +89,20 @@ class MainActivity : Activity() {
             } catch(e) { return ''; } })()
         """.trimIndent()
         web.evaluateJavascript(js) { result -> if (result?.contains("reload") == true) web.reload() }
+    }
+
+    /** A recipe link shared to the app opens the dashboard's "Add from a recipe" review screen. */
+    private fun sharedRecipeUrl(i: Intent?): String? {
+        if (i?.action != Intent.ACTION_SEND) return null
+        val text = i.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+        val link = Regex("https?://\\S+").find(text)?.value ?: return null
+        return Config.DASHBOARD_URL + "?recipe=" + URLEncoder.encode(link, "UTF-8")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        sharedRecipeUrl(intent)?.let { web.loadUrl(it) }
     }
 
     override fun onResume() {
