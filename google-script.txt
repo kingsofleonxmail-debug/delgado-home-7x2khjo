@@ -1,30 +1,30 @@
 /**
- * Delgado Family Dashboard — sync + calendar backend (Google Apps Script)
- * 1. Set FAMILY_CODE below.  2. Deploy → Web app → Execute as: Me, Who has access: Anyone
- * After any edit: Deploy → Manage deployments → pencil → Version: New version → Deploy (same link).
+ * Delgado Family Dashboard \u2014 sync + calendar backend (Google Apps Script)
+ * 1. Set FAMILY_CODE below.  2. Deploy \u2192 Web app \u2192 Execute as: Me, Who has access: Anyone
+ * After any edit: Deploy \u2192 Manage deployments \u2192 pencil \u2192 Version: New version \u2192 Deploy (same link).
  */
 
 // Pick a family code (a few random words works well, e.g. "purple-taco-river-42").
 // Everyone types it once on each phone/TV. Change it here any time to lock old devices out.
 const FAMILY_CODE = "CHANGE-ME";
 
-// School tracker — same order as the dashboard. Task 0 = Left for school, task 1 = Arrived at school.
+// School tracker \u2014 same order as the dashboard. Task 0 = Left for school, task 1 = Arrived at school.
 const KIDS = ["Julien", "Vinny"];
 const TASK_NAMES = ["left for school", "arrived at school"];
 const ARRIVED_TASK = 1;
 // Automatic ticks from the iPhones only count on weekdays in this window (dashboard taps always count).
 const SCHOOL_WINDOW = { start: "06:30", end: "09:00" };
 
-// Arrival alerts — fill in one or both. Leave "" to switch that alert off.
+// Arrival alerts \u2014 fill in one or both. Leave "" to switch that alert off.
 // NTFY_TOPIC: install the free "ntfy" app on your phone, subscribe to a long random topic name, paste it here.
 // ALERT_EMAIL: any email address (Gmail on your phone will notify you).
 const NTFY_TOPIC = "";
 const ALERT_EMAIL = "";
 
-// Mom's work — locations must match the dashboard and the Android app
+// Mom's work \u2014 locations must match the dashboard and the Android app
 const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
 
-// Recipe → shopping list. Paste an Anthropic API key here for smart cleanup (store-friendly names,
+// Recipe \u2192 shopping list. Paste an Anthropic API key here for smart cleanup (store-friendly names,
 // combined duplicates, sorted by aisle). Leave "" and it still works with basic cleanup.
 const ANTHROPIC_API_KEY = "";
 const CLEANUP_MODEL = "claude-haiku-5-5";
@@ -72,7 +72,7 @@ function doPost(e) {
   if (body.action === "work") return handleWork(body);
   if (body.action === "recipe") return handleRecipe(body);
 
-  // Dashboard taps: {date, k, t, v} — v is the tick time (ms) or false to untick
+  // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
   if (!validDate(date) || !(k >= 0 && k < 20) || !(t >= 0 && t < 50)) return json({ error: "bad input" });
   const v = typeof body.v === "number" ? body.v : (body.v ? Date.now() : false);
@@ -85,7 +85,7 @@ function handleCheck(b) {
   const tz = Session.getScriptTimeZone(), now = new Date();
   const day = Number(Utilities.formatDate(now, tz, "u")), hm = Utilities.formatDate(now, tz, "HH:mm");
   if (day > 5 || hm < SCHOOL_WINDOW.start || hm > SCHOOL_WINDOW.end) {
-    return json({ ok: false, message: "Not school-run time — nothing ticked" });
+    return json({ ok: false, message: "Not school-run time \u2014 nothing ticked" });
   }
   const date = Utilities.formatDate(now, tz, "yyyy-MM-dd");
   const existing = (readChecks(date)[k] || [])[t];
@@ -109,7 +109,7 @@ function setTick(date, k, t, v) {
     lock.releaseLock();
   }
   if (t === ARRIVED_TASK && v && !wasDone && KIDS[k]) {
-    sendAlert("🏫 " + KIDS[k] + " arrived at school at " + fmtTime(typeof v === "number" ? v : Date.now()));
+    sendAlert("\uD83C\uDFEB " + KIDS[k] + " arrived at school at " + fmtTime(typeof v === "number" ? v : Date.now()));
   }
   return checks;
 }
@@ -118,7 +118,7 @@ function sendAlert(msg) {
   try {
     if (NTFY_TOPIC) UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC),
       { method: "post", payload: msg, headers: { Title: "School tracker", Tags: "school" }, muteHttpExceptions: true });
-    if (ALERT_EMAIL) MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n— Delgado Family Dashboard");
+    if (ALERT_EMAIL) MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n\u2014 Delgado Family Dashboard");
   } catch (err) {
     console.log("Alert failed: " + err);
   }
@@ -126,7 +126,7 @@ function sendAlert(msg) {
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
 
-// ---------- Recipe → ingredients ----------
+// ---------- Recipe \u2192 ingredients ----------
 function handleRecipe(b) {
   let title = "", lines = [];
   if (typeof b.text === "string" && b.text.trim()) {
@@ -149,7 +149,7 @@ function handleRecipe(b) {
     title = found.title || "Recipe";
     lines = found.lines;
   }
-  lines = lines.map(function (l) { return decodeHtml(stripTags(String(l))).replace(/\s+/g, " ").replace(/^[-•*▢□☐\s]+/, "").trim(); })
+  lines = lines.map(function (l) { return decodeHtml(stripTags(String(l))).replace(/\s+/g, " ").replace(/^[-\u2022*\u25A2\u25A1\u2610\s]+/, "").trim(); })
                .filter(function (l) { return l && l.length < 200; }).slice(0, 80);
   if (!lines.length) return json({ ok: false, message: "No ingredients found." });
 
@@ -176,7 +176,7 @@ function parseRecipe(html) {
   const micro = html.match(/itemprop=["'](?:recipeIngredient|ingredients)["'][^>]*>[\s\S]*?<\/(?:li|span|p|div)>/gi);
   if (micro && micro.length) {
     const t = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
-    return { title: decodeHtml(t).split(/[|\-–]/)[0].trim(), lines: micro.map(function (m) { return m.replace(/^[^>]*>/, ""); }) };
+    return { title: decodeHtml(t).split(/[|\-\u2013]/)[0].trim(), lines: micro.map(function (m) { return m.replace(/^[^>]*>/, ""); }) };
   }
   return null;
 }
@@ -200,13 +200,13 @@ function decodeHtml(s) {
   return s.replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(Number(n)); })
           .replace(/&#x([0-9a-f]+);/gi, function (_, n) { return String.fromCharCode(parseInt(n, 16)); })
           .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'")
-          .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&frac12;/g, "½").replace(/&frac14;/g, "¼").replace(/&frac34;/g, "¾");
+          .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&frac12;/g, "\u00BD").replace(/&frac14;/g, "\u00BC").replace(/&frac34;/g, "\u00BE");
 }
 
 /** True for plain salt / pepper / water lines ("salt and pepper to taste", "1 cup warm water"), not "bell pepper". */
 function isSkipped(line) {
   const filler = /\b(cups?|c|tbsps?|tablespoons?|tsps?|teaspoons?|pinch(es)?|dash(es)?|to|taste|as|needed|kosher|sea|fine|coarse|flaky|freshly|fresh|ground|black|white|cracked|cold|warm|hot|ice|iced|lukewarm|boiling|room|temperature|and|or|of|for|more|divided|plus|extra|about|optional|tap|filtered|seasoning|some|a|few|grinds?|ml|liters?|l|oz|ounces?)\b/g;
-  const words = line.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[\d½¼¾⅓⅔⅛\/.,+\-–:;*]/g, " ").replace(filler, " ")
+  const words = line.toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[\d\u00BD\u00BC\u00BE\u2153\u2154\u215B\/.,+\-\u2013:;*]/g, " ").replace(filler, " ")
                     .split(/\s+/).filter(Boolean);
   return words.length > 0 && words.every(function (w) { return SKIP_INGREDIENTS.indexOf(w) >= 0 || w === "peppercorns"; });
 }
@@ -224,7 +224,7 @@ function smartClean(title, lines) {
     "Turn these recipe ingredient lines into a grocery shopping list.\n" +
     "Rules:\n" +
     "- One entry per thing to buy. Combine duplicates.\n" +
-    "- Store-friendly name first, then the amount in parentheses, e.g. \"Diced tomatoes (2 × 14.5 oz cans)\", \"Yellow onion (1)\", \"All-purpose flour (2 cups)\".\n" +
+    "- Store-friendly name first, then the amount in parentheses, e.g. \"Diced tomatoes (2 \u00D7 14.5 oz cans)\", \"Yellow onion (1)\", \"All-purpose flour (2 cups)\".\n" +
     "- Drop prep words like chopped, minced, softened, divided, drained.\n" +
     "- Leave out " + SKIP_INGREDIENTS.join(", ") + " (plain table salt/black pepper/tap water). Keep bell peppers, chili peppers, cayenne and other real items.\n" +
     "- Keep each entry under 70 characters.\n" +
@@ -340,8 +340,8 @@ function handleWork(b) {
   }
   if (skip) return json({ ok: true, message: "duplicate ignored" });
   const shift = readShifts().filter(function (x) { return x.date === date && x.loc === b.loc; })[0];
-  const note = shift ? " (shift " + niceTime(shift.start) + "–" + niceTime(shift.end) + ")" : " (no shift on the schedule)";
-  const msg = (b.event === "arrive" ? "🏥 Mom arrived at " : "🚗 Mom left ") + b.loc + " at " + fmtTime(now) + note;
+  const note = shift ? " (shift " + niceTime(shift.start) + "\u2013" + niceTime(shift.end) + ")" : " (no shift on the schedule)";
+  const msg = (b.event === "arrive" ? "\uD83C\uDFE5 Mom arrived at " : "\uD83D\uDE97 Mom left ") + b.loc + " at " + fmtTime(now) + note;
   sendAlert(msg);
   return json({ ok: true, message: msg });
 }
@@ -481,5 +481,5 @@ function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** Run this once from the editor to test: View → Logs shows your upcoming events. */
+/** Run this once from the editor to test: View \u2192 Logs shows your upcoming events. */
 function testEvents() { Logger.log(JSON.stringify(getEvents(), null, 2)); }
