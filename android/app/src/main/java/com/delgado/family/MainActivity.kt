@@ -7,6 +7,9 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.app.AlertDialog
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -42,6 +45,27 @@ class MainActivity : Activity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 shareSettingsWithPage()
+            }
+        }
+        // Show the page's "Delete this?" confirmations and notices (WebView hides them by default).
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onJsConfirm(view: WebView, url: String, message: String, result: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message)
+                    .setPositiveButton("Yes") { _, _ -> result.confirm() }
+                    .setNegativeButton("Cancel") { _, _ -> result.cancel() }
+                    .setOnCancelListener { result.cancel() }
+                    .show()
+                return true
+            }
+
+            override fun onJsAlert(view: WebView, url: String, message: String, result: JsResult): Boolean {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage(message)
+                    .setPositiveButton("OK") { _, _ -> result.confirm() }
+                    .setOnCancelListener { result.confirm() }
+                    .show()
+                return true
             }
         }
         root.addView(web, FrameLayout.LayoutParams(-1, -1))
