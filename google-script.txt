@@ -159,7 +159,9 @@ function testAlert() {
 // ---------- Check in: a boy taps the button, Dad gets an email with where he is. Nothing is stored. ----------
 function handleCheckin(b) {
   const k = Number(b.k), lat = Number(b.lat), lon = Number(b.lon);
-  if (!(k >= 0 && k < KIDS.length)) return json({ ok: false, message: "Unknown name" });
+  // The boys send their number (k); Dad and Mom's app sends who it is.
+  const name = (k >= 0 && k < KIDS.length) ? KIDS[k] : (["Dad", "Mom"].indexOf(b.who) >= 0 ? b.who : "");
+  if (!name) return json({ ok: false, message: "Unknown name" });
   if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0))
     return json({ ok: false, message: "Location didn't come through \u2014 try again" });
   const note = typeof b.note === "string" ? b.note.replace(/\s+/g, " ").trim().slice(0, 120) : "";
@@ -172,7 +174,7 @@ function handleCheckin(b) {
   const latS = lat.toFixed(5), lonS = lon.toFixed(5);
   const map = "https://www.google.com/maps/search/?api=1&query=" + latS + "," + lonS;
   const when = fmtTime(Date.now());
-  const subject = "\uD83D\uDCCD " + KIDS[k] + " checked in at " + when;
+  const subject = "\uD83D\uDCCD " + name + " checked in at " + when;
   const lines = [subject, "", place ? "Near " + place : "Location: " + latS + ", " + lonS];
   if (acc) lines.push("Accurate to about " + (acc < 1609 ? Math.round(acc * 3.281) + " ft" : (acc / 1609).toFixed(1) + " miles"));
   if (note) lines.push("", "\u201C" + note + "\u201D");

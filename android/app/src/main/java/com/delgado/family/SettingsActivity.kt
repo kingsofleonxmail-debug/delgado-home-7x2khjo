@@ -43,6 +43,8 @@ class SettingsActivity : Activity() {
     private lateinit var workBox: LinearLayout
     private lateinit var permStatus: TextView
     private lateinit var placeStatus: TextView
+    private lateinit var ciStatus: TextView
+    private var pendingCheckIn: EditText? = null
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -143,6 +145,21 @@ class SettingsActivity : Activity() {
             workBox.addView(button("I'm at ${w.name} now — use this spot") { useCurrentSpot(w.name) }, lp(top = 8))
         }
 
+        // ----- Check in (Dad and Mom) -----
+        val ciCard = card(col)
+        ciCard.addView(label("CHECK IN"))
+        ciCard.addView(small("Sends your location by email, just like the boys' check-in. Nothing is saved."))
+        val ciNote = EditText(this).apply {
+            hint = "Add a note (optional)"
+            setTextColor(cText); setHintTextColor(cMuted)
+            background = box(Color.parseColor("#080D1B"), cLine)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+        ciCard.addView(ciNote, lp(top = 10))
+        ciStatus = small("")
+        ciCard.addView(button("📍 Check in") { checkIn(ciNote) }, lp(top = 10))
+        ciCard.addView(ciStatus, lp(top = 6))
+
         refreshWorkVisibility()
         updatePermStatus()
         updatePlaceStatus()
@@ -156,6 +173,11 @@ class SettingsActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 5) {
+            val note = pendingCheckIn; pendingCheckIn = null
+            if (Geofences.hasFine(this) && note != null) checkIn(note) else ciStatus.text = "Location wasn't allowed, so the check-in wasn't sent."
+            return
+        }
         updatePermStatus()
         if (Prefs.workTracking(this)) startWatching()
     }
@@ -194,6 +216,37 @@ class SettingsActivity : Activity() {
         } catch (e: Exception) {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
+    }
+
+    /** Get a fresh location fix and email it (with the optional note) through the family script. */
+    @SuppressLint("MissingPermission")
+    private fun checkIn(noteField: EditText) {
+        if (Prefs.key(this).isEmpty()) { ciStatus.text = "Enter the family code at the top first."; return }
+        if (!Geofences.hasFine(this)) {
+            pendingCheckIn = noteField
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 5)
+            return
+        }
+        ciStatus.text = "Getting your location…"
+        LocationServices.getFusedLocationProviderClient(this)
+            .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token)
+            .addOnSuccessListener { loc ->
+                if (loc == null) { ciStatus.text = "Couldn't get a location fix. Try again outside or near a window."; return@addOnSuccessListener }
+                ciStatus.text = "Sending…"
+                val note = noteField.text.toString().trim().take(120)
+                thread {
+                    val res = Api.post(this, JSONObject().put("action", "checkin").put("who", Prefs.owner(this))
+                        .put("lat", loc.latitude).put("lon", loc.longitude).put("acc", loc.accuracy.toInt()).put("note", note))
+                    runOnUiThread {
+                        when {
+                            res == null -> ciStatus.text = "Couldn't reach the family script. Check the internet and try again."
+                            res.optBoolean("ok") -> { ciStatus.text = "✓ " + res.optString("message", "Checked in"); noteField.setText("") }
+                            else -> ciStatus.text = res.optString("message", res.optString("error", "Didn't send — try again."))
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener { ciStatus.text = "Couldn't get a location: ${it.message}" }
     }
 
     @SuppressLint("MissingPermission")
