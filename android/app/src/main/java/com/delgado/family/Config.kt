@@ -20,7 +20,7 @@ object Config {
         Workplace("Kingston", "200 2nd Ave, Kingston, PA 18704")
     )
 
-    /** Size of each work zone, in meters (150 m ≈ 500 ft across). */
+    /** Work zone radius in meters — 150 m is about 500 ft from the spot in every direction. */
     const val GEOFENCE_RADIUS_M = 150f
 
     /** She has to stay inside this long before it counts as "arrived" — stops drive-bys and GPS blips. */
