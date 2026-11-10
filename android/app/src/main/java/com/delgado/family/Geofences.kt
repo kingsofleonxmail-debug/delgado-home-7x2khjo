@@ -65,8 +65,10 @@ object Geofences {
                     .setRequestId(w.name)
                     .setCircularRegion(c.first, c.second, Config.GEOFENCE_RADIUS_M)
                     .setExpirationDuration(Geofence.NEVER_EXPIRE)
-                    .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
-                    .setNotificationResponsiveness(60_000)
+                    // "Arrived" only after staying inside a few minutes (DWELL); "left" as soon as Android notices (EXIT).
+                    .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_DWELL or Geofence.GEOFENCE_TRANSITION_EXIT)
+                    .setLoiteringDelay(Config.ARRIVE_AFTER_MS)
+                    .setNotificationResponsiveness(0)       // ask Android for its fastest updates
                     .build()
             }
             if (fences.isEmpty()) { done("Couldn't find the workplaces — use the \"I'm here now\" buttons."); return@thread }
@@ -91,7 +93,7 @@ class GeofenceReceiver : BroadcastReceiver() {
         val ev = GeofencingEvent.fromIntent(intent) ?: return
         if (ev.hasError()) return
         val event = when (ev.geofenceTransition) {
-            Geofence.GEOFENCE_TRANSITION_ENTER -> "arrive"
+            Geofence.GEOFENCE_TRANSITION_DWELL -> "arrive"
             Geofence.GEOFENCE_TRANSITION_EXIT -> "leave"
             else -> return
         }

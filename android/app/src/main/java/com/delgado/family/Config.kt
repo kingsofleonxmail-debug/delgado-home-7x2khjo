@@ -20,6 +20,9 @@ object Config {
         Workplace("Kingston", "200 2nd Ave, Kingston, PA 18704")
     )
 
-    /** How close counts as "arrived", in meters. Hospitals are big, so be generous. */
-    const val GEOFENCE_RADIUS_M = 250f
+    /** Size of each work zone, in meters (150 m ≈ 500 ft across). */
+    const val GEOFENCE_RADIUS_M = 150f
+
+    /** She has to stay inside this long before it counts as "arrived" — stops drive-bys and GPS blips. */
+    const val ARRIVE_AFTER_MS = 3 * 60 * 1000
 }
