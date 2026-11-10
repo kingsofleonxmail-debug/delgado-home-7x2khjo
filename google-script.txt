@@ -8,7 +8,9 @@
 //   FAMILY_CODE        - required, the code everyone types once
 //   NTFY_TOPIC         - your ntfy topic for alerts
 //   ANTHROPIC_API_KEY  - optional, turns on smart recipe cleanup
-//   ALERT_EMAIL        - optional backup email for alerts
+//   ALERT_EMAIL        - optional email(s) for alerts, comma-separated
+//   TELEGRAM_TOKEN     - optional, from @BotFather in Telegram
+//   TELEGRAM_CHAT_ID   - optional, run findTelegramChat to get it (comma-separate for more than one)
 const SETTINGS = PropertiesService.getScriptProperties();
 const FAMILY_CODE = SETTINGS.getProperty("FAMILY_CODE") || "CHANGE-ME";
 
@@ -22,6 +24,8 @@ const SCHOOL_WINDOW = { start: "06:30", end: "09:00" };
 // Arrival alerts \u2014 fill in one or both. Leave "" to switch that alert off.
 const NTFY_TOPIC = SETTINGS.getProperty("NTFY_TOPIC") || "";
 const ALERT_EMAIL = SETTINGS.getProperty("ALERT_EMAIL") || "";
+const TELEGRAM_TOKEN = (SETTINGS.getProperty("TELEGRAM_TOKEN") || "").trim();
+const TELEGRAM_CHAT_ID = (SETTINGS.getProperty("TELEGRAM_CHAT_ID") || "").trim();
 
 // Mom's work \u2014 locations must match the dashboard and the Android app
 const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
@@ -117,8 +121,16 @@ function setTick(date, k, t, v) {
   return checks;
 }
 
-function sendAlert(msg, details) {
+function sendAlert(msg, details, where) {
   const results = [];
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) {
+    TELEGRAM_CHAT_ID.split(",").map(function (c) { return c.trim(); }).filter(Boolean).forEach(function (chat) {
+      const r = telegram("sendMessage", { chat_id: chat, text: details || msg, disable_web_page_preview: true });
+      results.push("telegram: " + (r.ok ? "sent" : "failed " + r.why));
+      // Check-ins also drop a map pin into the chat
+      if (r.ok && where) telegram("sendLocation", { chat_id: chat, latitude: where.lat, longitude: where.lon, disable_notification: true });
+    });
+  }
   if (NTFY_TOPIC) {
     // ntfy can briefly refuse busy shared servers (code 429), so retry a few times before giving up.
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -149,10 +161,39 @@ function sendAlert(msg, details) {
   return results;
 }
 
+function telegram(method, payload) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/" + method, {
+        method: "post", contentType: "application/json", payload: JSON.stringify(payload), muteHttpExceptions: true });
+      const out = JSON.parse(res.getContentText() || "{}");
+      if (out.ok) return { ok: true, data: out.result };
+      if (attempt === 2) return { ok: false, why: (res.getResponseCode() + " " + (out.description || "")).slice(0, 120) };
+    } catch (err) {
+      if (attempt === 2) return { ok: false, why: String(err).slice(0, 120) };
+    }
+    Utilities.sleep(2000);
+  }
+}
+
+/** After sending your bot a message (or adding it to a family group), run this. The log shows the chat ID to save. */
+function findTelegramChat() {
+  if (!TELEGRAM_TOKEN) { Logger.log("Add TELEGRAM_TOKEN to Script Properties first."); return; }
+  const r = telegram("getUpdates", {});
+  if (!r.ok) { Logger.log("Telegram said: " + r.why); return; }
+  const seen = {};
+  (r.data || []).forEach(function (u) {
+    const m = u.message || u.edited_message || u.channel_post || u.my_chat_member || {};
+    const c = m.chat; if (!c || seen[c.id]) return; seen[c.id] = true;
+    Logger.log("TELEGRAM_CHAT_ID = " + c.id + "   (" + (c.title || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.username || c.type) + ")");
+  });
+  if (!Object.keys(seen).length) Logger.log("No chats found yet. Send your bot a message like \"hi\" in Telegram, wait a few seconds, then run this again.");
+}
+
 /** Run from the editor (pick testAlert, tap Run) to send a test alert and see what ntfy answered in the log. */
 function testAlert() {
-  Logger.log("NTFY_TOPIC is " + (NTFY_TOPIC ? "set (" + NTFY_TOPIC.length + " letters)" : "MISSING") +
-             ", ALERT_EMAIL is " + (ALERT_EMAIL ? "set" : "not set"));
+  Logger.log("Telegram is " + (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID ? "set" : (TELEGRAM_TOKEN ? "missing TELEGRAM_CHAT_ID" : "not set")) +
+             ", email is " + (ALERT_EMAIL ? "set" : "not set") + ", ntfy is " + (NTFY_TOPIC ? "set" : "not set"));
   Logger.log(sendAlert("\uD83D\uDD14 Test alert from the Delgado Family Dashboard").join("\n"));
 }
 
@@ -179,8 +220,8 @@ function handleCheckin(b) {
   if (acc) lines.push("Accurate to about " + (acc < 1609 ? Math.round(acc * 3.281) + " ft" : (acc / 1609).toFixed(1) + " miles"));
   if (note) lines.push("", "\u201C" + note + "\u201D");
   lines.push("", "Open in Google Maps: " + map);
-  const results = sendAlert(subject, lines.join("\n"));
-  const sent = results.some(function (r) { return /email: sent|: 200$/.test(r); });
+  const results = sendAlert(subject, lines.join("\n"), { lat: lat, lon: lon });
+  const sent = results.some(function (r) { return /email: sent|telegram: sent|: 200$/.test(r); });
   if (!sent) return json({ ok: false, message: "Couldn't send the check-in \u2014 tell Dad to check the alert settings." });
   return json({ ok: true, message: "Checked in at " + when + (place ? " \u2014 near " + place.split(",")[0] : "") });
 }
