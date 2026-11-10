@@ -115,8 +115,10 @@ function setTick(date, k, t, v) {
   } finally {
     lock.releaseLock();
   }
-  if (t === ARRIVED_TASK && v && !wasDone && KIDS[k]) {
-    sendAlert("\uD83C\uDFEB " + KIDS[k] + " arrived at school at " + fmtTime(typeof v === "number" ? v : Date.now()));
+  // Alert Dad the moment a box goes from unticked to ticked: left home, and arrived at school.
+  if (v && !wasDone && KIDS[k] && t < TASK_NAMES.length) {
+    const icon = t === ARRIVED_TASK ? "\uD83C\uDFEB " : "\uD83D\uDE8C ";
+    sendAlert(icon + KIDS[k] + " " + TASK_NAMES[t] + " at " + fmtTime(typeof v === "number" ? v : Date.now()));
   }
   return checks;
 }
