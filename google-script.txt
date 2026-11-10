@@ -73,6 +73,7 @@ function doPost(e) {
   if (body.action === "check") return handleCheck(body);
   if (body.action === "work") return handleWork(body);
   if (body.action === "recipe") return handleRecipe(body);
+  if (body.action === "checkin") return handleCheckin(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -116,7 +117,7 @@ function setTick(date, k, t, v) {
   return checks;
 }
 
-function sendAlert(msg) {
+function sendAlert(msg, details) {
   const results = [];
   if (NTFY_TOPIC) {
     // ntfy can briefly refuse busy shared servers (code 429), so retry a few times before giving up.
@@ -124,7 +125,7 @@ function sendAlert(msg) {
       let code = 0, body = "";
       try {
         const res = UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC),
-          { method: "post", payload: msg, muteHttpExceptions: true,
+          { method: "post", payload: details || msg, muteHttpExceptions: true,
             headers: { Title: "Delgado Family", Tags: "house", Priority: "high" } });
         code = res.getResponseCode(); body = res.getContentText().slice(0, 120);
       } catch (err) { body = String(err).slice(0, 120); }
@@ -134,7 +135,7 @@ function sendAlert(msg) {
     }
   }
   if (ALERT_EMAIL) {
-    try { MailApp.sendEmail(ALERT_EMAIL, msg, msg + "\n\n\u2014 Delgado Family Dashboard"); results.push("email: sent"); }
+    try { MailApp.sendEmail(ALERT_EMAIL, msg, (details || msg) + "\n\n\u2014 Delgado Family Dashboard"); results.push("email: sent"); }
     catch (err) { results.push("email: " + String(err).slice(0, 120)); }
   }
   // Keep the last 15 alert attempts so problems can be checked (see Script Properties: alert-log).
@@ -153,6 +154,33 @@ function testAlert() {
   Logger.log("NTFY_TOPIC is " + (NTFY_TOPIC ? "set (" + NTFY_TOPIC.length + " letters)" : "MISSING") +
              ", ALERT_EMAIL is " + (ALERT_EMAIL ? "set" : "not set"));
   Logger.log(sendAlert("\uD83D\uDD14 Test alert from the Delgado Family Dashboard").join("\n"));
+}
+
+// ---------- Check in: a boy taps the button, Dad gets an email with where he is. Nothing is stored. ----------
+function handleCheckin(b) {
+  const k = Number(b.k), lat = Number(b.lat), lon = Number(b.lon);
+  if (!(k >= 0 && k < KIDS.length)) return json({ ok: false, message: "Unknown name" });
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0))
+    return json({ ok: false, message: "Location didn't come through \u2014 try again" });
+  const note = typeof b.note === "string" ? b.note.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+  const acc = Number(b.acc) > 0 ? Math.round(Number(b.acc)) : 0;
+  let place = "";
+  try {
+    const r = Maps.newGeocoder().reverseGeocode(lat, lon);
+    if (r && r.results && r.results.length) place = r.results[0].formatted_address;
+  } catch (err) { console.log("Address lookup failed: " + err); }
+  const latS = lat.toFixed(5), lonS = lon.toFixed(5);
+  const map = "https://www.google.com/maps/search/?api=1&query=" + latS + "," + lonS;
+  const when = fmtTime(Date.now());
+  const subject = "\uD83D\uDCCD " + KIDS[k] + " checked in at " + when;
+  const lines = [subject, "", place ? "Near " + place : "Location: " + latS + ", " + lonS];
+  if (acc) lines.push("Accurate to about " + (acc < 1609 ? Math.round(acc * 3.281) + " ft" : (acc / 1609).toFixed(1) + " miles"));
+  if (note) lines.push("", "\u201C" + note + "\u201D");
+  lines.push("", "Open in Google Maps: " + map);
+  const results = sendAlert(subject, lines.join("\n"));
+  const sent = results.some(function (r) { return /email: sent|: 200$/.test(r); });
+  if (!sent) return json({ ok: false, message: "Couldn't send the check-in \u2014 tell Dad to check the alert settings." });
+  return json({ ok: true, message: "Checked in at " + when + (place ? " \u2014 near " + place.split(",")[0] : "") });
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }

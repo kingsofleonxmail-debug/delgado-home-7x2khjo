@@ -327,6 +327,24 @@ body{
 #rcpList .dupnote{font-size:.7rem;color:var(--warm);white-space:nowrap}
 .shopsrc{display:block;font-size:.7rem;color:var(--dim);font-weight:500;text-decoration:none}
 
+/* Countdown tiles */
+.cdtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:.8rem}
+.cdtile{position:relative;border:1px solid var(--line);border-radius:var(--inner);padding:.9rem 1rem;background:rgba(255,255,255,.02)}
+.cdtile.first{border-color:rgba(var(--accent-rgb),.55);background:rgba(var(--accent-rgb),.07);box-shadow:0 0 22px rgba(var(--accent-rgb),.15)}
+.cdtile .x{position:absolute;top:.35rem;right:.35rem}
+.cdnum{font-size:2rem;font-weight:800;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
+.cdtile.first .cdnum{text-shadow:0 0 16px rgba(var(--accent-rgb),.5)}
+.cdnum span{font-size:.45em;color:var(--muted);font-weight:700}
+.cdname{font-weight:800;margin-top:.45rem;padding-right:1rem}
+@media(min-width:900px){.cdform{grid-template-columns:2fr 1fr auto;align-items:end}}
+/* Shopping list in two columns when wide */
+#shopPanel .shop{max-height:none}
+@media(min-width:900px){#shopList{display:grid;grid-template-columns:1fr 1fr;column-gap:2rem}#shopList .empty{grid-column:1/-1}}
+/* Check-in (boys' personal pages) */
+.checkin{margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
+.checkin[hidden]{display:none}
+.ci-btn{width:100%;font-size:1.05rem;padding:.85rem}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
@@ -395,11 +413,17 @@ body{
     <section class="panel s8 am checklist">
       <div class="ph"><div><div class="pt" id="clTitle">School tracker</div><div class="ps">Ticks itself from their iPhones — or tap to tick</div></div><span class="tag good" id="clTotal"></span></div>
       <div class="kids" id="kids"></div>
+      <form class="checkin" id="checkin" hidden autocomplete="off">
+        <div class="sh"><span>Check in with Dad</span><span>Sends your location by email</span></div>
+        <input id="ciNote" class="rinput" maxlength="120" placeholder="Add a note (optional) — e.g. At Jake's house">
+        <button class="btn primary ci-btn" type="submit">📍 Check in</button>
+        <div class="ps" id="ciStatus"></div>
+      </form>
     </section>
 
     <section class="panel s4 am">
-      <div class="ph"><div><div class="pt">Bin schedule</div><div class="ps">Morning pickups — put out the night before</div></div></div>
-      <table class="tbl"><thead><tr><th>Day</th><th>Pickup</th><th>Status</th></tr></thead><tbody id="binRows"></tbody></table>
+      <div class="ph"><div><div class="pt">Today's plans</div><div class="ps" id="planSrc">From your calendar</div></div></div>
+      <div id="today"></div>
     </section>
 
     <section class="panel s8" id="momPanel">
@@ -441,7 +465,7 @@ body{
       <svg class="mini" id="napWeek"></svg>
     </section>
 
-    <section class="panel s8">
+    <section class="panel">
       <div class="ph"><div><div class="pt">Pets</div><div class="ps">Tap to log — time-stamped and synced on every screen</div></div><span class="tag acc" id="petTotal"></span></div>
       <div class="whorow">Logging as <div class="seg" id="who"></div></div>
       <div class="acts" id="acts"></div>
@@ -451,7 +475,7 @@ body{
       </div>
     </section>
 
-    <section class="panel s4">
+    <section class="panel" id="shopPanel">
       <div class="ph"><div><div class="pt">Shopping list</div><div class="ps">Shared — add from any phone</div></div><span class="tag acc" id="shopCount"></span></div>
       <form class="addrow" id="shopForm" autocomplete="off">
         <input id="shopIn" maxlength="80" placeholder="Add an item… (milk, dog food)" aria-label="Add an item">
@@ -462,17 +486,12 @@ body{
       <div class="shopfoot"><button type="button" class="btn small" id="shopClear" hidden></button></div>
     </section>
 
-    <section class="panel s8">
+    <section class="panel">
       <div class="ph"><div><div class="pt">Weekend preview</div><div class="ps">Forecast and plans for Saturday &amp; Sunday</div></div></div>
       <div class="wk" id="weekend"></div>
     </section>
 
-    <section class="panel s4">
-      <div class="ph"><div><div class="pt">Today's plans</div><div class="ps" id="planSrc">From your calendar</div></div></div>
-      <div id="today"></div>
-    </section>
-
-    <section class="panel s8">
+    <section class="panel">
       <div class="ph">
         <div><div class="pt">7-day temperature</div><div class="ps">Live forecast for <span id="locName"></span></div></div>
         <div class="legend"><span><i style="background:var(--accent)"></i>Highs</span><span><i style="background:var(--dim)"></i>Lows</span></div>
@@ -481,12 +500,12 @@ body{
       <svg class="chart" id="chart" viewBox="0 0 720 185"></svg>
     </section>
 
-    <section class="panel s4" id="cdPanel">
+    <section class="panel" id="cdPanel">
       <div class="ph"><div><div class="pt">Countdowns</div><div class="ps">Set by Dad &amp; Mom — the nearest shows at the top</div></div></div>
       <div id="cdList"></div>
       <div class="subp" style="margin-top:.9rem">
         <div class="sh"><span>Add a countdown</span><span class="seg seg-sm" data-whoseg></span></div>
-        <form class="shiftform" id="cdForm" autocomplete="off">
+        <form class="shiftform cdform" id="cdForm" autocomplete="off">
           <label>What are we counting to?<input id="cdName" maxlength="40" placeholder="Disney trip, Julien's birthday…" required></label>
           <label>Date<input type="date" id="cdDate" required></label>
           <button class="btn primary" type="submit">Add countdown</button>
@@ -496,7 +515,7 @@ body{
     </section>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09e</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09f</span></footer>
 </div>
 
 <script>
@@ -641,7 +660,7 @@ function renderDay(){
   if(b0 && b0.d === 0){ $("kBins").textContent = "Today"; tag.textContent = b0.items; tag.className = "tag warm"; }
   else if(b0 && b0.d === 1){ $("kBins").textContent = "Tonight"; tag.textContent = b0.items; tag.className = "tag warm"; }
   else if(b0){ $("kBins").textContent = DAYS[b0.day]; tag.textContent = b0.items; tag.className = "tag acc"; }
-  $("binRows").innerHTML = CONFIG.bins.slice().sort((a,b)=>a.day-b.day).map(b => {
+  if($("binRows")) $("binRows").innerHTML = CONFIG.bins.slice().sort((a,b)=>a.day-b.day).map(b => {
     const m = nb.find(x => x.day===b.day);
     const st = m.d===0 ? `<span class="tag warm">Today</span>` : m.d===1 ? `<span class="tag warm">Tonight</span>`
       : `<span class="tag acc">In ${m.d} days</span>`;
@@ -687,7 +706,7 @@ function renderWeather(){
   // Chart: next 7 days
   const D = WX.daily, n = Math.min(7, D.time.length);
   const hi = D.temperature_2m_max.slice(0,n), lo = D.temperature_2m_min.slice(0,n);
-  const narrow = innerWidth < 600, W = narrow ? 380 : 720, H = narrow ? 200 : 185, L = 34, R = 16, T = 30, B = 26;
+  const narrow = innerWidth < 600, W = narrow ? 380 : Math.round(Math.min(1500, Math.max(720, ($("chart").clientWidth || 720) * 0.72))), H = narrow ? 200 : 185, L = 34, R = 16, T = 30, B = 26;
   const max = Math.ceil((Math.max(...hi)+4)/5)*5, min = Math.floor((Math.min(...lo)-4)/5)*5;
   const x = i => L + i*(W-L-R)/(n-1), y = v => T + (max-v)/(max-min)*(H-T-B);
   const ph = hi.map((v,i)=>[x(i),y(v)]), pl = lo.map((v,i)=>[x(i),y(v)]);
@@ -843,7 +862,7 @@ function renderPets(){
 
   // Today: one lane per activity across the day
   const types = Object.keys(ACTS), narrow = isNarrow();
-  const W = narrow ? 340 : 520, lane = 26, top = 4, LW = narrow ? 58 : 72, R = 8, H = top + types.length*lane + 20;
+  const W = narrow ? 340 : Math.round(Math.max(520, ($("petDay").clientWidth || 520) * 0.85)), lane = 26, top = 4, LW = narrow ? 58 : 72, R = 8, H = top + types.length*lane + 20;
   const dayStart = parseYmd(ymd(now)).getTime();
   const x = h => LW + h/24*(W-LW-R);
   let g = `<defs><filter id="pg"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
@@ -872,7 +891,7 @@ function renderPets(){
     : `<div class="empty">Nothing logged yet today.</div>`;
 
   // Week: stacked bars per day
-  const days = lastDays(7), WW = narrow ? 340 : 520, WH = 150, L = 8, B = 20, T = 16;
+  const days = lastDays(7), WW = narrow ? 340 : Math.round(Math.max(520, ($("petWeek").clientWidth || 520) * 0.85)), WH = 150, L = 8, B = 20, T = 16;
   const counts = days.map(d => types.map(k => dayLogs(d).filter(e => e.type===k).length));
   const totals = counts.map(c => c.reduce((a,b)=>a+b, 0));
   const max = Math.max(4, ...totals), slot = (WW-L*2)/7, bw = slot*.5;
@@ -1104,10 +1123,10 @@ function renderCountdowns(){
   if(next){ $("kCd").textContent = next.d===0 ? "Today!" : `${next.d} day${next.d===1?"":"s"}`; $("kCdTag").textContent = next.name; $("kCdTag").hidden = false; }
   else { $("kCd").textContent = "—"; $("kCdTag").hidden = true; }
   const edit = canEditShifts();
-  $("cdList").innerHTML = list.length ? list.map((c,i) => `<div class="row cdrow${i===0?" first":""}">
-      <span class="t">${esc(c.name)}<br><span class="who">${fmtDay(c.date)}</span></span>
-      <span class="big">${c.d===0 ? "Today!" : `${c.d}<span style="font-size:.6em;color:var(--muted);font-weight:700"> day${c.d===1?"":"s"}</span>`}</span>
-      ${edit ? `<button type="button" class="x" data-cddel="${esc(c.id)}" aria-label="Delete countdown">×</button>` : ""}</div>`).join("")
+  $("cdList").innerHTML = list.length ? `<div class="cdtiles">` + list.map((c,i) => `<div class="cdtile${i===0?" first":""}">
+      ${edit ? `<button type="button" class="x" data-cddel="${esc(c.id)}" aria-label="Delete ${esc(c.name)} countdown">×</button>` : ""}
+      <div class="cdnum">${c.d===0 ? "Today!" : c.d}${c.d===0 ? "" : `<span> day${c.d===1?"":"s"}</span>`}</div>
+      <div class="cdname">${esc(c.name)}</div><div class="who">${fmtDay(c.date)}</div></div>`).join("") + `</div>`
     : `<div class="empty">Nothing to count down to yet.</div>`;
   $("cdForm").hidden = !edit;
   $("cdNote").textContent = edit ? `Adding as ${who}.` : `Pick Dad or Mom to add or delete countdowns.`;
@@ -1126,6 +1145,30 @@ $("cdList").addEventListener("click", e => {
   const b = e.target.closest("[data-cddel]"); if(!b || !canEditShifts()) return;
   const c = COUNTDOWNS.find(x => x.id === b.dataset.cddel);
   if(c && confirm(`Delete the "${c.name}" countdown?`)) sendOp({ op:"cdDel", id: c.id });
+});
+
+/* ---------- Check in (a boy's personal page: ?kid=…) ---------- */
+if(SOLO >= 0) $("checkin").hidden = false;
+$("checkin").addEventListener("submit", e => {
+  e.preventDefault();
+  const btn = $("checkin").querySelector("button");
+  const say = (m) => $("ciStatus").textContent = m;
+  if(!CONFIG.syncUrl){ say("Check-in needs the family server connected."); return; }
+  if(!navigator.geolocation){ say("This browser can't share location."); return; }
+  btn.disabled = true; say("Getting your location…");
+  navigator.geolocation.getCurrentPosition(async pos => {
+    say("Sending to Dad…");
+    try{
+      const res = await api({ action:"checkin", k: SOLO, lat: pos.coords.latitude, lon: pos.coords.longitude,
+                              acc: Math.round(pos.coords.accuracy || 0), note: $("ciNote").value.trim().slice(0, 120) });
+      say(res.ok ? "✓ " + (res.message || "Checked in") : (res.message || "Couldn't send — try again."));
+      if(res.ok) $("ciNote").value = "";
+    }catch(err){ if(KEY) say("Couldn't reach the family server — try again."); }
+    btn.disabled = false;
+  }, err => {
+    btn.disabled = false;
+    say(err.code === 1 ? "Location is blocked — allow it for this page in Settings, then try again." : "Couldn't get your location — try again outside or near a window.");
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
 });
 
 /* ---------- Recipe → shopping list ---------- */
