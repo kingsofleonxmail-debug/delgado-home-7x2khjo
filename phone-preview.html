@@ -25,7 +25,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .preview{display:flex;align-items:center;gap:8px;font-size:11px;color:#111;background:var(--warm);font-weight:700;border-radius:8px;padding:6px 10px;margin-bottom:12px}
 
 /* ---- Top (same as the live dashboard) ---- */
-.top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;padding:10px 16px 12px;margin:0 -16px 14px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:10;background:rgba(8,13,27,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 24px rgba(0,0,0,.35)}
 .brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--acc);flex:none;
   background:rgba(var(--acc-rgb),.12);border:1px solid rgba(var(--acc-rgb),.5);box-shadow:0 0 18px rgba(var(--acc-rgb),.25)}
@@ -39,10 +40,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .datechip svg{width:18px;height:18px;color:var(--acc)}
 .datechip b{display:block;font-size:19px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .datechip span{display:block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-top:3px}
-.kpis{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpis{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
 .kl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.kv{font-size:19px;font-weight:800;margin-top:3px;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.kv{font-size:17px;font-weight:800;margin-top:2px;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .tag{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:5px;border:1px solid;white-space:nowrap}
 .tag.acc{color:var(--acc);border-color:rgba(var(--acc-rgb),.45);background:rgba(var(--acc-rgb),.1)}
 .tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent)}
@@ -85,12 +86,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .tile.warn .big{color:var(--warm)}
 
 /* Section page */
-.page{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;transform:translateX(100%);transition:transform .28s ease;visibility:hidden}
-.page.open{transform:none;visibility:visible}
-.page .wrap{padding-top:max(10px,env(safe-area-inset-top))}
-.back{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;margin:0 -16px 12px;padding:10px 16px;background:rgba(8,13,27,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.page[hidden],.home-only[hidden]{display:none}
+.page{animation:pin .25s ease}
+@keyframes pin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.back{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:4px 2px 10px;border-bottom:1px solid var(--line)}
 .back button{color:var(--acc);font-weight:700;font-size:15px;padding:6px 4px}
-.back .ttl{flex:1;text-align:center;font-weight:800;font-size:15px;margin-right:56px}
+.back .ttl{flex:1;text-align:center;font-weight:800;font-size:15px;margin-right:80px}
 .pt{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 .ps{font-size:11px;color:var(--muted);margin-top:3px}
 .sec{margin-bottom:12px}
@@ -164,6 +165,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
     </div>
   </header>
 
+  <div class="home-only" id="homeOnly">
   <section class="panel quote" id="quote" aria-roledescription="carousel">
     <div class="qslides" id="qslides">
       <div class="qs on">
@@ -181,13 +183,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 
   <div class="tiles" id="tiles"></div>
   <div class="note">Tap a tile to open it · swipe the quote to see the verse</div>
-</div>
-
-<div class="page" id="page" aria-hidden="true">
-  <div class="wrap">
-    <div class="back"><button type="button" id="backBtn">‹ Home</button><div class="ttl" id="pageTitle"></div></div>
-    <div id="pageBody"></div>
   </div>
+
+  <section class="page" id="page" hidden>
+    <div class="back"><button type="button" id="backBtn">‹ All sections</button><div class="ttl" id="pageTitle"></div></div>
+    <div id="pageBody"></div>
+  </section>
 </div>
 
 <script>
@@ -274,14 +275,15 @@ function openPage(id, fromHistory){
   current = id;
   $("pageTitle").textContent = TITLES[id];
   render(id);
-  $("page").classList.add("open"); $("page").setAttribute("aria-hidden","false");
-  $("page").scrollTop = 0;
+  $("homeOnly").hidden = true; $("page").hidden = false;
+  scrollTo({ top:0, behavior:"instant" });
   if(!fromHistory) try { history.pushState({ page:id }, ""); } catch(e) {}
-  setTimeout(() => $("backBtn").focus(), 300);
+  setTimeout(() => $("backBtn").focus({ preventScroll:true }), 50);
 }
 function closePage(fromHistory){
-  $("page").classList.remove("open"); $("page").setAttribute("aria-hidden","true");
+  $("page").hidden = true; $("homeOnly").hidden = false;
   current = null; tiles();
+  scrollTo({ top:0, behavior:"instant" });
   if(!fromHistory) try { history.back(); } catch(e) {}
 }
 $("backBtn").addEventListener("click", () => closePage());
