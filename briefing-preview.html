@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Daily Briefing Preview</title>
+<style>
+:root{--bg:#070b18;--panel:#0f1830;--panel2:#13203d;--line:#1d2a4a;--line2:#2a3a62;--text:#e8eefc;--muted:#8a97b8;--dim:#5b6788;
+  --acc:#22d3ee;--acc-rgb:34,211,238;--good:#34d399;--warm:#f59e0b}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(600px 400px at 15% 0%,rgba(var(--acc-rgb),.08),transparent 70%),var(--bg)}
+.wrap{max-width:560px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px 40px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.preview{font-size:11px;color:#111;background:var(--warm);font-weight:700;border-radius:8px;padding:6px 10px;margin-bottom:14px}
+.top{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--acc);background:rgba(var(--acc-rgb),.12);border:1px solid rgba(var(--acc-rgb),.5)}
+.logo svg{width:22px;height:22px}
+.bname{font-weight:800;font-size:16px;letter-spacing:.04em;text-transform:uppercase;line-height:1.1;flex:1}
+.btag{font-size:10px;letter-spacing:.18em;color:var(--muted);margin-top:3px}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--good);
+  border:1px solid color-mix(in srgb,var(--good) 55%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent);padding:4px 9px;border-radius:99px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good)}
+
+/* ---- The assistant button ---- */
+.ai{position:relative;width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:radial-gradient(circle,#0b2a3a 0%,#06121f 70%);box-shadow:0 0 14px rgba(var(--acc-rgb),.35),inset 0 0 10px rgba(var(--acc-rgb),.25)}
+.ai svg{width:100%;height:100%;overflow:visible}
+.ai .spin{transform-origin:50px 50px;animation:spin 9s linear infinite}
+.ai .spin2{transform-origin:50px 50px;animation:spin 14s linear infinite reverse}
+.ai .ticks{transform-origin:50px 50px;animation:spin 30s linear infinite}
+.ai .eye{animation:blink 5s infinite}
+.ai .head{animation:bob 4s ease-in-out infinite;transform-origin:50px 52px}
+.ai .wave{opacity:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{0%,46%,50%,100%{opacity:1}48%{opacity:.1}}
+@keyframes bob{50%{transform:translateY(-1.2px)}}
+.ai.talk{box-shadow:0 0 22px rgba(var(--acc-rgb),.8),0 0 44px rgba(var(--acc-rgb),.35),inset 0 0 12px rgba(var(--acc-rgb),.5)}
+.ai.talk .spin{animation-duration:1.6s}.ai.talk .spin2{animation-duration:2.4s}
+.ai.talk .eye{animation:glow .5s ease-in-out infinite alternate}
+.ai.talk .wave{opacity:1;animation:wave 1.1s ease-out infinite}
+.ai.talk .wave.b{animation-delay:.55s}
+@keyframes glow{to{filter:drop-shadow(0 0 3px #7CFFB2);opacity:.75}}
+@keyframes wave{from{transform:scale(.85);opacity:.8}to{transform:scale(1.25);opacity:0}}
+.ai .wave{transform-origin:50px 50px}
+.ai:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.ai.big{width:150px;height:150px;margin:6px auto 2px}
+
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.pt{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.ps{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+.center{text-align:center}
+.say{font-size:14px;line-height:1.6;color:#cfd8ef;margin-top:10px;white-space:pre-line}
+.say mark{background:rgba(var(--acc-rgb),.18);color:var(--text);border-radius:3px}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+select{flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--line2);border-radius:10px;padding:10px;font:inherit;font-size:14px}
+.btn{border:1px solid var(--line2);background:var(--panel2);border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px}
+.btn.primary{border-color:rgba(var(--acc-rgb),.6);background:rgba(var(--acc-rgb),.14);color:var(--acc)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chips button{border:1px solid var(--line2);border-radius:99px;padding:6px 11px;font-size:12px;font-weight:700;color:var(--muted)}
+.chips button.on{border-color:var(--acc);color:var(--acc);background:rgba(var(--acc-rgb),.1)}
+label.s{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:10px}
+label.s input{flex:1}
+.warn{color:var(--warm);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="preview">👀 Preview: sample data. Tap the round button to hear it.</div>
+
+  <header class="top">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div>
+    <div class="bname">Delgado<br>Family<div class="btag">FAMILY DASHBOARD</div></div>
+    <span class="live"><i></i>LIVE</span>
+    <button type="button" class="ai" id="ai" aria-label="Read today's briefing"></button>
+  </header>
+
+  <section class="panel center">
+    <div class="pt">Daily briefing</div>
+    <div class="ps">The small button sits next to LIVE. Tap it to hear the day; tap again to stop.<br>It spins slowly while idle, then speeds up and glows while it talks.</div>
+    <button type="button" class="ai big" id="aiBig" aria-label="Read today's briefing"></button>
+  </section>
+
+  <section class="panel">
+    <div class="pt">Voice on this phone</div>
+    <div class="ps">These are the free voices already built into this device. The list is different on every phone and TV.</div>
+    <div class="chips" id="lang">
+      <button type="button" data-l="en-US" class="on">American</button>
+      <button type="button" data-l="en-GB">British</button>
+      <button type="button" data-l="en-AU">Australian</button>
+      <button type="button" data-l="en">All English</button>
+    </div>
+    <div class="row"><select id="voice" aria-label="Voice"></select></div>
+    <label class="s">Speed <input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
+    <label class="s">Pitch <input type="range" id="pitch" min="0.6" max="1.4" step="0.05" value="1"></label>
+    <div class="warn" id="warn" hidden></div>
+  </section>
+
+  <section class="panel">
+    <div class="pt">What it would say</div>
+    <div class="ps">Built from the dashboard: weather, school, Mom, calendar, bins, Sebastian, pets, shopping and countdown.</div>
+    <div class="say" id="say"></div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- Animated assistant icon (original design) ---------- */
+const ICON = `<svg viewBox="0 0 100 100" aria-hidden="true">
+  <defs>
+    <radialGradient id="hg" cx="50%" cy="38%" r="60%"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".55" stop-color="#2bb6d6"/><stop offset="1" stop-color="#0b4f68"/></radialGradient>
+    <filter id="gl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <circle class="wave" cx="50" cy="50" r="44" fill="none" stroke="#22d3ee" stroke-width="1.5"/>
+  <circle class="wave b" cx="50" cy="50" r="44" fill="none" stroke="#22d3ee" stroke-width="1.5"/>
+  <g class="ticks" stroke="#22d3ee" stroke-opacity=".55" stroke-width="1.2">
+    ${Array.from({length:36},(_,i)=>{const a=i*10*Math.PI/180, r1=i%3?33:31, r2=36;
+      return `<line x1="${50+r1*Math.cos(a)}" y1="${50+r1*Math.sin(a)}" x2="${50+r2*Math.cos(a)}" y2="${50+r2*Math.sin(a)}"/>`}).join("")}
+  </g>
+  <g class="spin" filter="url(#gl)" fill="none" stroke="#38e1ff" stroke-linecap="round">
+    <circle cx="50" cy="50" r="44" stroke-width="3.2" stroke-dasharray="70 206.5" />
+    <circle cx="50" cy="50" r="44" stroke-width="3.2" stroke-dasharray="30 246.5" stroke-dashoffset="-140"/>
+  </g>
+  <g class="spin2" fill="none" stroke="#22d3ee" stroke-opacity=".7" stroke-linecap="round">
+    <circle cx="50" cy="50" r="39.5" stroke-width="1.3" stroke-dasharray="40 22 12 22"/>
+  </g>
+  <circle cx="50" cy="50" r="28" fill="none" stroke="#22d3ee" stroke-opacity=".35" stroke-width="1"/>
+  <g class="head" filter="url(#gl)">
+    <path d="M34 50a16 17 0 0 1 32 0" fill="none" stroke="#22d3ee" stroke-width="2.2"/>
+    <rect x="29.5" y="46" width="6" height="11" rx="3" fill="#0d2233" stroke="#ff4d6d" stroke-width="1.6"/>
+    <rect x="64.5" y="46" width="6" height="11" rx="3" fill="#0d2233" stroke="#ff4d6d" stroke-width="1.6"/>
+    <path d="M38 44c0-7 5.4-12 12-12s12 5 12 12v8c0 6-4 11-8 13h-8c-4-2-8-7-8-13z" fill="url(#hg)" stroke="#bdf6ff" stroke-width=".8"/>
+    <path d="M40 47.5h20" stroke="#063244" stroke-width="5" stroke-linecap="round"/>
+    <path class="eye" d="M42.5 47.2l5 1.3M57.5 47.2l-5 1.3" stroke="#7CFFB2" stroke-width="2" stroke-linecap="round"/>
+    <path d="M46 60h8" stroke="#063244" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+</svg>`;
+$("ai").innerHTML = ICON; $("aiBig").innerHTML = ICON;
+
+/* ---------- Sample briefing (the real one uses live dashboard data) ---------- */
+function briefing(){
+  const d = new Date(), h = d.getHours();
+  const hi = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const time = d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+  const day = d.toLocaleDateString([], {weekday:"long", month:"long", day:"numeric"});
+  return [
+    `${hi}, Delgado family. It's ${time} on ${day}.`,
+    `Weather: it's 49 degrees and clear in Pittston. Today's high is 52, dropping to 34 tonight. Tomorrow looks cloudy with a high of 49, and the weekend is 51 Saturday and 43 Sunday with a chance of snow.`,
+    `School: Julien arrived at 7:58. Vinny left at 7:45 and is still on the way.`,
+    `Mom is at work in Kingston until 11:30 tonight. Her next shift is Monday, 7 to 3:30 in Wilkes-Barre.`,
+    `On the calendar: soccer practice at 5:30 today, and a parent-teacher conference Thursday at 4.`,
+    `Bins: cardboard goes out Monday morning.`,
+    `Sebastian has no nap logged yet today.`,
+    `Pets: the dog was fed at 7:10 and the dogs were out at 7:25. The cat hasn't been fed yet.`,
+    `There are 5 things on the shopping list, including milk and onions.`,
+    `And 9 days to go until GTA. Have a great day.`
+  ];
+}
+function showText(active = -1){
+  $("say").innerHTML = briefing().map((s,i) => i === active ? `<mark>${s}</mark>` : s).join("\n");
+}
+showText();
+
+/* ---------- Voices ---------- */
+const synth = window.speechSynthesis;
+let lang = "en-US", voices = [];
+function loadVoices(){
+  if(!synth){ $("warn").hidden = false; $("warn").textContent = "This browser can't speak. On the Android app and TV this would go through Android's own voice instead."; return; }
+  voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
+  const list = voices.filter(v => lang === "en" || v.lang.replace("_","-").startsWith(lang));
+  const keep = $("voice").value;
+  $("voice").innerHTML = list.length ? list.map(v => `<option value="${v.name}">${v.name.replace(/^(Google|Microsoft|Apple) /,"")} · ${v.lang}${v.localService ? "" : " (online)"}</option>`).join("")
+    : `<option value="">No ${lang} voices on this device</option>`;
+  if(keep && list.some(v => v.name === keep)) $("voice").value = keep;
+}
+if(synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+$("lang").addEventListener("click", e => { const b = e.target.closest("[data-l]"); if(!b) return;
+  lang = b.dataset.l; document.querySelectorAll("#lang button").forEach(x => x.classList.toggle("on", x === b)); loadVoices(); });
+
+let talking = false;
+function setTalk(on){ talking = on; $("ai").classList.toggle("talk", on); $("aiBig").classList.toggle("talk", on);
+  const l = on ? "Stop the briefing" : "Read today's briefing"; $("ai").setAttribute("aria-label", l); $("aiBig").setAttribute("aria-label", l); if(!on) showText(); }
+function speak(){
+  if(!synth) return;
+  if(talking){ synth.cancel(); setTalk(false); return; }
+  synth.cancel();
+  const v = voices.find(x => x.name === $("voice").value);
+  const parts = briefing();
+  setTalk(true);
+  parts.forEach((t, i) => {
+    const u = new SpeechSynthesisUtterance(t);
+    if(v){ u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+    u.rate = +$("rate").value; u.pitch = +$("pitch").value;
+    u.onstart = () => showText(i);
+    if(i === parts.length - 1){ u.onend = () => setTalk(false); u.onerror = () => setTalk(false); }
+    synth.speak(u);
+  });
+}
+$("ai").addEventListener("click", speak);
+$("aiBig").addEventListener("click", speak);
+$("voice").addEventListener("change", () => { if(talking){ synth.cancel(); setTalk(false); } });
+</script>
+</body>
+</html>
