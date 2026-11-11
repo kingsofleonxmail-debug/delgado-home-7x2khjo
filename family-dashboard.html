@@ -411,9 +411,12 @@ main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
   .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .stage{display:none}
   body.viewing .stage{display:flex}
-  body.viewing .tiles,body.viewing .top,body.viewing .quote,body.viewing .foot{display:none}
-  .backbar{display:flex;align-items:center;position:sticky;top:0;z-index:5;margin:-.2rem -16px .2rem;padding:.7rem 16px;
-    background:rgba(8,13,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  body.viewing .tiles,body.viewing .quote,body.viewing .foot{display:none}
+  .backbar{display:flex;align-items:center;margin:-.2rem 0 .2rem;padding:.3rem 0 .7rem;border-bottom:1px solid var(--line)}
+  .page-anim{animation:secin .25s ease}
+  body:not(.solo) .wrap{padding-bottom:96px}
+  body:not(.solo) .mini{display:block}
+  body:not(.solo) .dock{display:block}
   .backbar button{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;font-size:1rem;padding:.3rem .2rem;cursor:pointer}
   .btitle{flex:1;text-align:center;font-weight:800;margin-right:4rem}
   .quote{padding-right:3.4rem}
@@ -436,8 +439,35 @@ main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
 .tile.hot .big{color:var(--accent)}
 .tile.warn{border-color:color-mix(in srgb,var(--warm) 55%,transparent)}
 .tile.warn .big{color:var(--warm)}
+/* Phone: slim top bar once you scroll, and a dock of sections along the bottom */
+@keyframes secin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.mini,.dock{display:none;position:fixed;left:0;right:0;z-index:20;background:rgba(8,13,27,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.mini{top:0;border-bottom:1px solid var(--line);box-shadow:0 10px 24px rgba(0,0,0,.4);padding:max(8px,env(safe-area-inset-top)) 16px 8px;
+  transform:translateY(-110%);transition:transform .25s ease;visibility:hidden}
+body.scrolled .mini{transform:none;visibility:visible}
+.mini .in{max-width:540px;margin:0 auto}
+.mrow{display:flex;align-items:center;gap:8px}
+.mrow .logo{width:28px;height:28px;border-radius:8px}.mrow .logo svg{width:16px;height:16px}
+.mrow .mnm{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;flex:1}
+.mrow .live{margin-left:0}
+.mrow .mck{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.mchips{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}
+.mchips div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 6px;text-align:center;min-width:0}
+.mchips small{display:block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mchips b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mq{display:flex;align-items:center;gap:8px;width:100%;margin-top:7px;font:inherit;font-size:12px;color:var(--muted);text-align:left;background:none;border:0;padding:0;cursor:pointer}
+.mq span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mq i{font-style:normal;color:var(--accent);font-weight:800;font-size:15px}
+.dock{bottom:0;border-top:1px solid var(--line);padding:6px 6px max(8px,env(safe-area-inset-bottom))}
+.dock .in{max-width:540px;margin:0 auto;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.dock .in::-webkit-scrollbar{display:none}
+.dock button{flex:1 0 58px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:10px;font:inherit;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--muted);background:none;border:0;cursor:pointer}
+.dock button span{font-size:19px;line-height:1.1;filter:grayscale(.6);opacity:.8}
+.dock button.on{color:var(--accent);background:rgba(var(--accent-rgb),.1)}
+.dock button.on span{filter:none;opacity:1}
+@media(min-width:700px){ .mini,.dock{display:none !important} }
 /* Boys' personal pages (?kid=…) */
-.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext{display:none !important}
+.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext,.solo .mini,.solo .dock{display:none !important}
 .solo .shell{display:block}
 .solo .stage{display:flex !important}
 .solo .wrap{height:auto;overflow:visible}
@@ -496,6 +526,13 @@ main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
     </div>
     <div class="datechip"><span id="calIc"></span><div><b id="clock">—</b><span id="dateTxt"></span></div></div>
   </header>
+
+  <div class="mini" id="mini" aria-hidden="true"><div class="in">
+    <div class="mrow"><div class="logo" id="mLogo"></div><div class="mnm" id="mName"></div><span class="live" id="mLive"><i></i>LIVE</span><div class="mck" id="mClock"></div></div>
+    <div class="mchips"><div><small>Now</small><b id="mNow">—</b></div><div><small>Mom</small><b id="mMom">—</b></div><div><small>Bins</small><b id="mBins">—</b></div><div><small id="mCdL">Countdown</small><b id="mCd">—</b></div></div>
+    <button type="button" class="mq" id="mq" tabindex="-1"><span id="mqt"></span><i>›</i></button>
+  </div></div>
+  <nav class="dock" id="dock" aria-label="Sections"><div class="in" id="dockIn"></div></nav>
 
   <main>
     <section class="panel quote" id="quotePanel" aria-roledescription="carousel" aria-label="Quote and verse of the day">
@@ -641,7 +678,7 @@ main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.10</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.11</span></footer>
 </div>
 
 <script>
@@ -1656,6 +1693,7 @@ function renderNav(){
   const tilesHtml = SECTIONS.map(([id, ic, , short]) => `<button type="button" class="tile ${S[id].cls}" data-sec="${id}">
     <span class="ic">${ic}</span><span class="nm">${esc(short)}</span><span class="big">${esc(S[id].big)}</span><span class="sub">${esc(S[id].sub)}</span></button>`).join("");
   if($("tiles").dataset.html !== tilesHtml){ $("tiles").innerHTML = tilesHtml; $("tiles").dataset.html = tilesHtml; }
+  if(isPhone() && SOLO < 0) renderMini();
 }
 const isPhone = () => matchMedia("(max-width:699px)").matches;
 function showSection(id, opts = {}){
@@ -1664,18 +1702,21 @@ function showSection(id, opts = {}){
   $("upNextPanel").hidden = (id === "calendar");
   const sec = SECTIONS.find(x => x[0] === id);
   $("stageTitle").textContent = sec ? sec[1] + " " + sec[2] : "";
-  $("nav").dataset.html = ""; renderNav();
+  $("nav").dataset.html = ""; renderNav(); renderDock();
   if(id === "weather") renderWeather();
   if(id === "pets" || id === "nap") renderLogs();
   if(!opts.keepScroll) $("stage").scrollTop = 0;
   if(isPhone() && opts.open){
+    const wasViewing = document.body.classList.contains("viewing");
     document.body.classList.add("viewing"); scrollTo(0, 0);
-    if(!opts.fromHistory) try { history.pushState({ sec:id }, ""); } catch(e) {}
+    $("stage").classList.remove("page-anim"); void $("stage").offsetWidth; $("stage").classList.add("page-anim");
+    if(!opts.fromHistory) try { if(wasViewing) history.replaceState({ sec:id }, ""); else history.pushState({ sec:id }, ""); } catch(e) {}
     setTimeout(() => $("backBtn").focus({ preventScroll:true }), 50);
+    renderDock();
   }
 }
 function closeSection(fromHistory){
-  document.body.classList.remove("viewing");
+  document.body.classList.remove("viewing"); scrollTo(0, 0); renderDock();
   if(!fromHistory) try { history.back(); } catch(e) {}
 }
 $("nav").addEventListener("click", e => { const b = e.target.closest("[data-sec]"); if(b){ touched(); showSection(b.dataset.sec); } });
@@ -1703,13 +1744,44 @@ setInterval(() => {
   if(Date.now() - lastSectionFlip >= 20000){ lastSectionFlip = Date.now();
     const i = SECTIONS.findIndex(x => x[0] === current); showSection(SECTIONS[(i + 1) % SECTIONS.length][0]); }
 }, 1000);
+// Phone: dock along the bottom + slim top bar that slides in once you scroll
+function renderDock(){
+  const on = document.body.classList.contains("viewing") ? current : "home";
+  const html = [["home","🏠","Home"]].concat(SECTIONS.map(([id, ic, , short]) => [id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short]))
+    .map(([id, ic, nm]) => `<button type="button" data-dock="${id}" class="${id === on ? "on" : ""}" aria-current="${id === on}"><span>${ic}</span>${esc(nm)}</button>`).join("");
+  if($("dockIn").dataset.html !== html){ $("dockIn").innerHTML = html; $("dockIn").dataset.html = html;
+    const b = $("dockIn").querySelector(".on"); if(b) b.scrollIntoView({ block:"nearest", inline:"nearest" }); }
+}
+$("dockIn").addEventListener("click", e => { const b = e.target.closest("[data-dock]"); if(!b) return;
+  if(b.dataset.dock === "home"){ if(document.body.classList.contains("viewing")) closeSection(); else scrollTo({ top:0, behavior:"smooth" }); }
+  else showSection(b.dataset.dock, { open:true });
+  renderDock(); });
+function renderMini(){
+  const t = id => { const el = $(id); return el ? el.textContent.trim() : ""; };
+  if(!$("mLogo").innerHTML) $("mLogo").innerHTML = $("logo").innerHTML;
+  $("mName").textContent = t("bname").split(/\s+/)[0] || "Family";
+  $("mClock").textContent = t("clock");
+  $("mLive").className = $("live").className;
+  $("mNow").textContent = t("kNow") || "—";
+  $("mMom").textContent = t("kMomTag") || t("kMom") || "—";
+  $("mBins").textContent = t("kBins") || "—";
+  $("mCdL").textContent = t("kCdTag") || "Countdown";
+  $("mCd").textContent = t("kCd") || "—";
+  const q = qSlide ? t("vText") : t("qText");
+  $("mqt").textContent = q ? (qSlide ? "📖 " : "⚔ ") + "\u201C" + q.replace(/^[\u201C"]|[\u201D"]$/g, "") + "\u201D" : "";
+}
+$("mq").addEventListener("click", () => { showSlide(qSlide ? 0 : 1); renderMini(); });
+function onScrollMini(){ document.body.classList.toggle("scrolled", isPhone() && SOLO < 0 && document.querySelector(".top").getBoundingClientRect().bottom < 130); }
+addEventListener("scroll", onScrollMini, { passive:true });
+addEventListener("resize", onScrollMini);
+setInterval(() => { if(isPhone()){ renderMini(); renderDock(); } }, 4000);
 window.__navReady = true;
 setInterval(renderNav, 4000);
 
 /* ---------- Start ---------- */
 let lastDay = ymd(new Date());
 if(CONFIG.syncUrl) CAL = store.get("fd-cal");
-renderClock(); renderDay(); showSection("school"); renderNav(); loadWeather(); keepAwake(); pullCalendar(); pullState();
+renderClock(); renderDay(); showSection("school"); renderNav(); renderDock(); renderMini(); loadWeather(); keepAwake(); pullCalendar(); pullState();
 setInterval(() => {
   renderClock();
   const d = ymd(new Date());
