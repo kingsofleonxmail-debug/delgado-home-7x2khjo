@@ -34,6 +34,7 @@ class MainActivity : Activity() {
         web.setBackgroundColor(Color.parseColor("#080D1B"))
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
+        web.settings.mediaPlaybackRequiresUserGesture = false   // lets the daily briefing play its voice
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()

@@ -33,6 +33,9 @@ const WORK_LOCATIONS = ["Wilkes-Barre", "Kingston"];
 // Recipe \u2192 shopping list. Paste an Anthropic API key here for smart cleanup (store-friendly names,
 // combined duplicates, sorted by aisle). Leave "" and it still works with basic cleanup.
 const ANTHROPIC_API_KEY = SETTINGS.getProperty("ANTHROPIC_API_KEY") || "";
+// Daily briefing voice: a Google Cloud API key with the Text-to-Speech API turned on.
+const GOOGLE_TTS_KEY = (SETTINGS.getProperty("GOOGLE_TTS_KEY") || "").trim();
+const DEFAULT_VOICE = (SETTINGS.getProperty("TTS_VOICE") || "en-US-Chirp3-HD-Charon").trim();
 const CLEANUP_MODEL = "claude-haiku-5-5";
 const SKIP_INGREDIENTS = ["salt", "pepper", "water"];   // never added (bell peppers etc. are kept)
 const AISLES = ["Produce", "Meat & Seafood", "Dairy & Eggs", "Bakery", "Pantry", "Spices & Baking", "Frozen", "Drinks", "Other"];
@@ -78,6 +81,8 @@ function doPost(e) {
   if (body.action === "work") return handleWork(body);
   if (body.action === "recipe") return handleRecipe(body);
   if (body.action === "checkin") return handleCheckin(body);
+  if (body.action === "briefing") return handleBriefing(body);
+  if (body.action === "speak") return handleSpeak(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -602,3 +607,97 @@ function testRecipe() {
 
 /** Run this once from the editor to test: View \u2192 Logs shows your upcoming events. */
 function testEvents() { Logger.log(JSON.stringify(getEvents(), null, 2)); }
+
+
+// ---------- Daily briefing (the robot button) ----------
+// The dashboard sends today's facts; Claude turns them into a short spoken briefing;
+// Google's Chirp 3 HD voice reads it. If either service isn't set up, it falls back gracefully.
+function cleanVoice(v) {
+  v = String(v || "");
+  return /^en-(US|GB|AU|IN)-Chirp3-HD-[A-Za-z]+$/.test(v) ? v : DEFAULT_VOICE;
+}
+
+function handleBriefing(b) {
+  const facts = String(b.facts || "").slice(0, 5000);
+  const fallback = String(b.fallback || "").slice(0, 2500);
+  if (!facts && !fallback) return json({ ok: false, message: "Nothing to read" });
+  let text = "", writer = "template", note = "";
+  if (ANTHROPIC_API_KEY && facts) {
+    try { text = writeBriefing(facts); writer = "claude"; }
+    catch (err) { note = "Claude: " + String(err.message || err).slice(0, 120); }
+  }
+  if (!text) text = fallback;
+  const out = { ok: true, text: text, writer: writer };
+  if (GOOGLE_TTS_KEY) {
+    try { out.audio = synthSpeech(text, cleanVoice(b.voice)); out.voice = cleanVoice(b.voice); }
+    catch (err) { note += (note ? " | " : "") + "Voice: " + String(err.message || err).slice(0, 160); }
+  } else {
+    note += (note ? " | " : "") + "Voice: GOOGLE_TTS_KEY not set";
+  }
+  if (note) out.note = note;
+  return json(out);
+}
+
+// Voice samples for the voice picker
+function handleSpeak(b) {
+  const text = String(b.text || "").slice(0, 300);
+  if (!text) return json({ ok: false, message: "Nothing to say" });
+  if (!GOOGLE_TTS_KEY) return json({ ok: false, message: "GOOGLE_TTS_KEY isn't set in Script Properties yet" });
+  try { return json({ ok: true, audio: synthSpeech(text, cleanVoice(b.voice)) }); }
+  catch (err) { return json({ ok: false, message: String(err.message || err).slice(0, 200) }); }
+}
+
+function writeBriefing(facts) {
+  const prompt =
+    "You are the friendly voice of the Delgado family's home dashboard in Pittston, PA. " +
+    "Write what you will SAY OUT LOUD as a quick daily briefing, using only the facts below.\n" +
+    "Rules:\n" +
+    "- 70 to 130 words. Warm, upbeat, natural, like a helpful family assistant. Plain sentences only: no lists, headings, emojis, symbols or markdown.\n" +
+    "- Open with a greeting that fits the time of day, then the weather (now, today's high and low, anything notable like rain, snow or cold).\n" +
+    "- Then only what matters right now: where the boys are with school, Mom's work, today's and tomorrow's plans, bins if they go out today or tonight, Sebastian's nap, pets that still need doing, the shopping list, and the nearest countdown.\n" +
+    "- Skip anything with nothing useful to say. Don't invent anything. Don't mention data sources or the dashboard.\n" +
+    "- Say times the way people talk (\"five thirty\" style is fine as 5:30). Say degrees as \"degrees\".\n" +
+    "- End with one short friendly line.\n\nFacts:\n" + facts;
+  const res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+    method: "post", contentType: "application/json", muteHttpExceptions: true,
+    headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    payload: JSON.stringify({ model: CLEANUP_MODEL, max_tokens: 500, messages: [{ role: "user", content: prompt }] })
+  });
+  if (res.getResponseCode() !== 200) throw new Error("API " + res.getResponseCode() + ": " + res.getContentText().slice(0, 150));
+  const out = JSON.parse(res.getContentText());
+  const text = (out.content || []).filter(function (c) { return c.type === "text"; }).map(function (c) { return c.text; }).join("")
+    .replace(/[*#_`]/g, "").replace(/\s+/g, " ").trim();
+  if (text.length < 20) throw new Error("Empty briefing");
+  return text.slice(0, 2500);
+}
+
+function synthSpeech(text, voice) {
+  const lang = voice.split("-").slice(0, 2).join("-");
+  const res = UrlFetchApp.fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key=" + encodeURIComponent(GOOGLE_TTS_KEY), {
+    method: "post", contentType: "application/json", muteHttpExceptions: true,
+    payload: JSON.stringify({ input: { text: text }, voice: { languageCode: lang, name: voice }, audioConfig: { audioEncoding: "MP3" } })
+  });
+  const code = res.getResponseCode();
+  if (code !== 200) {
+    let msg = res.getContentText();
+    try { msg = JSON.parse(msg).error.message; } catch (e) {}
+    throw new Error(code + " " + String(msg).slice(0, 160));
+  }
+  const audio = JSON.parse(res.getContentText()).audioContent;
+  if (!audio) throw new Error("No audio returned");
+  return audio;
+}
+
+// Run this once from the editor after adding GOOGLE_TTS_KEY: it checks Claude and the voice.
+function testBriefing() {
+  const facts = "Time: Tuesday, November 10, 7:12 PM.\nWeather now: 49 degrees, clear. Today high 52, low 34. Tomorrow: overcast, high 49.\n" +
+    "School: Julien arrived 7:58 AM; Vinny on the way.\nMom: at work in Kingston, shift 3:00p to 11:30p.\nCalendar today: Soccer practice 5:30pm.\n" +
+    "Pets: dog fed 7:10 AM; cat not fed yet.\nShopping list: 5 to buy.\nCountdown: 9 days to GTA.";
+  Logger.log("Claude key " + (ANTHROPIC_API_KEY ? "is set" : "is NOT set") + ", Google voice key " + (GOOGLE_TTS_KEY ? "is set" : "is NOT set") + ", voice " + DEFAULT_VOICE);
+  try { const t = writeBriefing(facts); Logger.log("Claude wrote: " + t); }
+  catch (err) { Logger.log("Claude problem: " + err.message); }
+  if (GOOGLE_TTS_KEY) {
+    try { const a = synthSpeech("Hello Delgado family. The voice is working.", DEFAULT_VOICE); Logger.log("Voice works: got " + Math.round(a.length * 0.75 / 1024) + " KB of audio."); }
+    catch (err) { Logger.log("Voice problem: " + err.message); }
+  }
+}

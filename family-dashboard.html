@@ -113,6 +113,48 @@ body{
 .live.off{color:var(--warm);border-color:color-mix(in srgb, var(--warm) 55%, transparent);background:color-mix(in srgb, var(--warm) 10%, transparent)}
 .live.off i{background:var(--warm);box-shadow:none;animation:none}
 @keyframes pulse{50%{opacity:.35}}
+/* ---- Briefing robot button ---- */
+.ai{position:relative;width:2.7rem;height:2.7rem;border-radius:50%;flex:none;display:grid;place-items:center;padding:0;border:0;cursor:pointer;margin-left:.5rem;
+  background:radial-gradient(circle,#0b2a3a 0%,#06121f 70%);box-shadow:0 0 14px rgba(var(--accent-rgb),.35),inset 0 0 10px rgba(var(--accent-rgb),.25);-webkit-tap-highlight-color:transparent}
+.ai svg{width:100%;height:100%;overflow:visible;pointer-events:none}
+.ai .spin{transform-origin:50px 50px;animation:aispin 9s linear infinite}
+.ai .spin2{transform-origin:50px 50px;animation:aispin 14s linear infinite reverse}
+.ai .ticks{transform-origin:50px 50px;animation:aispin 30s linear infinite}
+.ai .eye{animation:aiblink 5s infinite}
+.ai .head{animation:aibob 4s ease-in-out infinite;transform-origin:50px 52px}
+.ai .wave{opacity:0;transform-origin:50px 50px}
+@keyframes aispin{to{transform:rotate(360deg)}}
+@keyframes aiblink{0%,46%,50%,100%{opacity:1}48%{opacity:.1}}
+@keyframes aibob{50%{transform:translateY(-1.2px)}}
+.ai.think .spin{animation-duration:1s}.ai.think .spin2{animation-duration:1.6s}.ai.think .eye{animation:aiglow .35s ease-in-out infinite alternate}
+.ai.talk{box-shadow:0 0 22px rgba(var(--accent-rgb),.8),0 0 44px rgba(var(--accent-rgb),.35),inset 0 0 12px rgba(var(--accent-rgb),.5)}
+.ai.talk .spin{animation-duration:1.6s}.ai.talk .spin2{animation-duration:2.4s}
+.ai.talk .eye{animation:aiglow .5s ease-in-out infinite alternate}
+.ai.talk .wave{opacity:1;animation:aiwave 1.1s ease-out infinite}
+.ai.talk .wave.b{animation-delay:.55s}
+@keyframes aiglow{to{filter:drop-shadow(0 0 3px #7CFFB2);opacity:.75}}
+@keyframes aiwave{from{transform:scale(.85);opacity:.8}to{transform:scale(1.25);opacity:0}}
+.ai:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.mrow .ai{width:30px;height:30px;margin-left:0}
+/* caption + voice picker */
+.aicap{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;width:min(640px,calc(100% - 24px));
+  background:rgba(8,13,27,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(var(--accent-rgb),.45);border-radius:16px;
+  box-shadow:0 18px 40px rgba(0,0,0,.5),0 0 24px rgba(var(--accent-rgb),.15);padding:.9rem 1rem;animation:capin .25s ease}
+.aicap[hidden]{display:none}
+@keyframes capin{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+.aicap .ct{font-size:.95rem;line-height:1.5;max-height:9.5em;overflow-y:auto;color:var(--text)}
+.aicap .ch{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--accent)}
+.aicap .ch span{flex:1}
+.aicap .cb{display:flex;gap:.5rem;margin-top:.7rem;flex-wrap:wrap}
+.aicap .cb button,.vsheet button.vbtn{font:inherit;font-size:.82rem;font-weight:700;color:var(--text);background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:.5rem .8rem;cursor:pointer}
+.aicap .cb button.pri{color:var(--accent);border-color:rgba(var(--accent-rgb),.6);background:rgba(var(--accent-rgb),.12)}
+.aicap .cn{font-size:.72rem;color:var(--muted);margin-top:.5rem}
+.vlist{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.6rem;max-height:50vh;overflow-y:auto}
+.vlist button{text-align:left;font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.55rem .7rem;cursor:pointer}
+.vlist button b{display:block;font-size:.9rem}.vlist button small{font-size:.7rem;color:var(--muted)}
+.vlist button.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.1)}
+.vlist button.on b{color:var(--accent)}
+body:not(.solo) .dock ~ .aicap{bottom:calc(84px + env(safe-area-inset-bottom))}
 .kpis{display:flex;gap:1.8rem;flex:1;justify-content:center;flex-wrap:wrap}
 .kpi .kl{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .kpi .kv{font-size:1.45rem;font-weight:800;margin-top:.15rem;display:flex;align-items:baseline;gap:.5rem;white-space:nowrap}
@@ -418,6 +460,13 @@ main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
   body:not(.solo) .mini{display:block}
   body:not(.solo) .dock{display:block}
   body:not(.solo){overflow-anchor:none}
+  .top .bname{width:min-content;line-height:1.1}
+  .top .ai{width:2.35rem;height:2.35rem;margin-left:.35rem}
+  .top .live{margin-left:.3rem}
+  .top .brand{gap:.6rem;min-width:0}
+  .top .logo{flex:none}
+  #calIc{display:none}
+  .datechip{padding:.5rem .7rem}
   body:not(.solo) .wrap{min-height:calc(100vh + 190px)}
   .quote{max-height:460px;transition:max-height .3s ease,opacity .2s ease,padding .3s ease,margin .3s ease,border-width .3s ease}
   body.scrolled .quote{max-height:0;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;border-width:0;pointer-events:none}
@@ -471,7 +520,8 @@ body.scrolled .mini{transform:none;visibility:visible}
 .dock button.on span{filter:none;opacity:1}
 @media(min-width:700px){ .mini,.dock{display:none !important} }
 /* Boys' personal pages (?kid=…) */
-.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext,.solo .mini,.solo .dock{display:none !important}
+.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext,.solo .mini,.solo .dock,.solo .ai{display:none !important}
+@media(min-width:700px){ .aicap{bottom:24px !important} }
 .solo .shell{display:block}
 .solo .stage{display:flex !important}
 .solo .wrap{height:auto;overflow:visible}
@@ -521,6 +571,7 @@ body.scrolled .mini{transform:none;visibility:visible}
       <div class="logo" id="logo"></div>
       <div><div class="bname" id="bname"></div><div class="btag">Family dashboard</div></div>
       <span class="live" id="live"><i></i>LIVE</span>
+      <button type="button" class="ai" id="aiBtn" aria-label="Read today's briefing" title="Daily briefing"></button>
     </div>
     <div class="kpis">
       <div class="kpi"><div class="kl">Right now</div><div class="kv"><span id="kNow">—</span><span class="tag acc" id="kCond"></span></div></div>
@@ -532,11 +583,18 @@ body.scrolled .mini{transform:none;visibility:visible}
   </header>
 
   <div class="mini" id="mini" aria-hidden="true"><div class="in">
-    <div class="mrow"><div class="logo" id="mLogo"></div><div class="mnm" id="mName"></div><span class="live" id="mLive"><i></i>LIVE</span><div class="mck" id="mClock"></div></div>
+    <div class="mrow"><div class="logo" id="mLogo"></div><div class="mnm" id="mName"></div><span class="live" id="mLive"><i></i>LIVE</span><div class="mck" id="mClock"></div><button type="button" class="ai" id="aiMini" aria-label="Read today's briefing" tabindex="-1"></button></div>
     <div class="mchips"><div><small>Now</small><b id="mNow">—</b></div><div><small>Mom</small><b id="mMom">—</b></div><div><small>Bins</small><b id="mBins">—</b></div><div><small id="mCdL">Countdown</small><b id="mCd">—</b></div></div>
     <button type="button" class="mq" id="mq" tabindex="-1"><span id="mqt"></span><i>›</i></button>
   </div></div>
   <nav class="dock" id="dock" aria-label="Sections"><div class="in" id="dockIn"></div></nav>
+  <div class="aicap" id="aiCap" hidden role="status" aria-live="polite">
+    <div class="ch"><span id="aiHead">Daily briefing</span></div>
+    <div class="ct" id="aiText"></div>
+    <div class="vlist" id="vList" hidden></div>
+    <div class="cb"><button type="button" class="pri" id="aiStop">Stop</button><button type="button" id="aiVoice">🎙 Voice</button><button type="button" id="aiClose">Close</button></div>
+    <div class="cn" id="aiNote" hidden></div>
+  </div>
 
   <main>
     <section class="panel quote" id="quotePanel" aria-roledescription="carousel" aria-label="Quote and verse of the day">
@@ -682,7 +740,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.12</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.13</span></footer>
 </div>
 
 <script>
@@ -1779,6 +1837,129 @@ function onScrollMini(){ document.body.classList.toggle("scrolled", isPhone() &&
 addEventListener("scroll", onScrollMini, { passive:true });
 addEventListener("resize", onScrollMini);
 setInterval(() => { if(isPhone()){ renderMini(); renderDock(); } }, 4000);
+/* ---------- Daily briefing (robot button) ---------- */
+const AI_ICON = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs>
+  <radialGradient id="aihg" cx="50%" cy="38%" r="60%"><stop offset="0" stop-color="#9ff3ff"/><stop offset=".55" stop-color="#2bb6d6"/><stop offset="1" stop-color="#0b4f68"/></radialGradient>
+  <filter id="aigl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  <circle class="wave" cx="50" cy="50" r="44" fill="none" stroke="#22d3ee" stroke-width="1.5"/><circle class="wave b" cx="50" cy="50" r="44" fill="none" stroke="#22d3ee" stroke-width="1.5"/>
+  <g class="ticks" stroke="#22d3ee" stroke-opacity=".55" stroke-width="1.2">${Array.from({length:36},(_,i)=>{const a=i*Math.PI/18,r1=i%3?33:31;return `<line x1="${(50+r1*Math.cos(a)).toFixed(1)}" y1="${(50+r1*Math.sin(a)).toFixed(1)}" x2="${(50+36*Math.cos(a)).toFixed(1)}" y2="${(50+36*Math.sin(a)).toFixed(1)}"/>`}).join("")}</g>
+  <g class="spin" filter="url(#aigl)" fill="none" stroke="#38e1ff" stroke-linecap="round"><circle cx="50" cy="50" r="44" stroke-width="3.2" stroke-dasharray="70 206.5"/><circle cx="50" cy="50" r="44" stroke-width="3.2" stroke-dasharray="30 246.5" stroke-dashoffset="-140"/></g>
+  <g class="spin2" fill="none" stroke="#22d3ee" stroke-opacity=".7" stroke-linecap="round"><circle cx="50" cy="50" r="39.5" stroke-width="1.3" stroke-dasharray="40 22 12 22"/></g>
+  <circle cx="50" cy="50" r="28" fill="none" stroke="#22d3ee" stroke-opacity=".35" stroke-width="1"/>
+  <g class="head" filter="url(#aigl)"><path d="M34 50a16 17 0 0 1 32 0" fill="none" stroke="#22d3ee" stroke-width="2.2"/>
+    <rect x="29.5" y="46" width="6" height="11" rx="3" fill="#0d2233" stroke="#ff4d6d" stroke-width="1.6"/><rect x="64.5" y="46" width="6" height="11" rx="3" fill="#0d2233" stroke="#ff4d6d" stroke-width="1.6"/>
+    <path d="M38 44c0-7 5.4-12 12-12s12 5 12 12v8c0 6-4 11-8 13h-8c-4-2-8-7-8-13z" fill="url(#aihg)" stroke="#bdf6ff" stroke-width=".8"/>
+    <path d="M40 47.5h20" stroke="#063244" stroke-width="5" stroke-linecap="round"/>
+    <path class="eye" d="M42.5 47.2l5 1.3M57.5 47.2l-5 1.3" stroke="#7CFFB2" stroke-width="2" stroke-linecap="round"/>
+    <path d="M46 60h8" stroke="#063244" stroke-width="1.6" stroke-linecap="round"/></g></svg>`;
+$("aiBtn").innerHTML = AI_ICON; $("aiMini").innerHTML = AI_ICON.replace(/aihg/g,"aihg2").replace(/aigl/g,"aigl2");
+const VOICES = [
+  ["en-US-Chirp3-HD-Charon","Charon","US · deep, calm"], ["en-US-Chirp3-HD-Puck","Puck","US · upbeat"],
+  ["en-US-Chirp3-HD-Fenrir","Fenrir","US · warm"], ["en-US-Chirp3-HD-Orus","Orus","US · steady"],
+  ["en-US-Chirp3-HD-Kore","Kore","US · clear"], ["en-US-Chirp3-HD-Aoede","Aoede","US · bright"],
+  ["en-US-Chirp3-HD-Leda","Leda","US · friendly"], ["en-US-Chirp3-HD-Zephyr","Zephyr","US · light"],
+  ["en-GB-Chirp3-HD-Charon","Charon","British · deep"], ["en-GB-Chirp3-HD-Kore","Kore","British · clear"],
+  ["en-GB-Chirp3-HD-Puck","Puck","British · upbeat"], ["en-AU-Chirp3-HD-Fenrir","Fenrir","Australian · warm"]
+];
+const myVoice = () => store.get("fd-voice") || "";
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+const aiAudio = new Audio(); aiAudio.preload = "auto";
+let aiState = "idle", aiRun = 0;
+function aiSet(st){ aiState = st; ["aiBtn","aiMini"].forEach(id => { $(id).classList.toggle("think", st === "think"); $(id).classList.toggle("talk", st === "talk");
+  $(id).setAttribute("aria-label", st === "idle" ? "Read today's briefing" : "Stop the briefing"); });
+  $("aiStop").hidden = st === "idle"; }
+function aiStop(){ aiRun++; try { aiAudio.pause(); } catch(e){} try { speechSynthesis.cancel(); } catch(e){} aiSet("idle"); }
+function aiCaption(head, text, note){ $("aiCap").hidden = false; $("vList").hidden = true; $("aiHead").textContent = head; $("aiText").textContent = text;
+  $("aiNote").hidden = !note; $("aiNote").textContent = note || ""; }
+function briefingFacts(){
+  const now = new Date(), L = [];
+  L.push(`Time: ${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}.`);
+  if(WX){
+    const t = wxDay(now), tm = new Date(now); tm.setDate(now.getDate() + 1); const w2 = wxDay(tm);
+    L.push(`Weather now in ${CONFIG.location.name}: ${Math.round(WX.current.temperature_2m)} degrees, ${wxKind(WX.current.weather_code, WX.current.is_day)[1]}.`);
+    if(t) L.push(`Today: high ${Math.round(t.hi)}, low ${Math.round(t.lo)}, ${t.rain}% chance of rain or snow, ${wxKind(t.code)[1]}.`);
+    if(w2) L.push(`Tomorrow (${DAYS_LONG[tm.getDay()]}): ${wxKind(w2.code)[1]}, high ${Math.round(w2.hi)}, low ${Math.round(w2.lo)}, ${w2.rain}% chance of rain or snow.`);
+    const rem = weatherReminders().map(r => r[1]); if(rem.length) L.push(`Weather reminders: ${rem.join(", ")}.`);
+  }
+  const wd = now.getDay() > 0 && now.getDay() < 6;
+  L.push(`School (${wd ? "school day" : "no school, weekend"}): ${summary("school").line}.`);
+  L.push(`Mom: ${summary("mom").line}.`);
+  const nextShifts = (SHIFTS || []).filter(x => x.date > ymd(now)).sort((a,b) => a.date.localeCompare(b.date)).slice(0, 2)
+    .map(x => { const d = parseYmd(x.date); return `${DAYS_LONG[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}, ${hmShort(x.start)} to ${hmShort(x.end)} at ${x.loc}`; });
+  if(nextShifts.length) L.push(`Mom's next shifts: ${nextShifts.join("; ")}.`);
+  const nowHm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  for(let i = 0; i < 3; i++){
+    const d = new Date(now); d.setDate(now.getDate() + i);
+    const ev = eventsOn(d).filter(e => !/ works · /.test(e.title)).filter(e => i > 0 || e.allDay || !e.time || e.time >= nowHm);
+    const label = i === 0 ? "Calendar later today" : i === 1 ? "Calendar tomorrow" : `Calendar ${DAYS_LONG[d.getDay()]}`;
+    L.push(`${label}: ${ev.length ? ev.map(e => e.title + (e.allDay || !e.time ? " (all day)" : " at " + fmt12(e.time))).join("; ") : "nothing"}.`);
+  }
+  L.push(`Bins: next pickup ${txt("#kBins")} morning (${txt("#kBinsTag")}). Bins go out the night before.`);
+  L.push(`Sebastian's nap: ${summary("nap").line}.`);
+  const pets = summary("pets"); L.push(`Pets: ${pets.line}. ${/Not fed/.test(pets.sub) ? pets.sub + "." : ""}`);
+  L.push(`Shopping list: ${summary("shop").line}.`);
+  L.push(`Countdown: ${summary("countdown").line}.`);
+  return L.join("\n");
+}
+function briefingFallback(){
+  const now = new Date(), h = now.getHours();
+  const out = [`${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${CONFIG.familyName}.`];
+  if(WX){ const t = wxDay(now); out.push(`It's ${Math.round(WX.current.temperature_2m)} degrees and ${wxKind(WX.current.weather_code, WX.current.is_day)[1].toLowerCase()}${t ? `, with a high of ${Math.round(t.hi)} and a low of ${Math.round(t.lo)}` : ""}.`); }
+  ["school","mom","calendar","nap","pets","shop","countdown"].forEach(id => { const l = summary(id).line; if(l) out.push(l.replace(/ · /g, ", ") + "."); });
+  return out.join(" ");
+}
+function deviceSpeak(text, run){
+  if(!("speechSynthesis" in window)) return false;
+  const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 1;
+  u.onend = u.onerror = () => { if(run === aiRun) aiSet("idle"); };
+  speechSynthesis.cancel(); speechSynthesis.speak(u); aiSet("talk"); return true;
+}
+async function playB64(b64, run){
+  aiAudio.src = "data:audio/mpeg;base64," + b64;
+  aiAudio.onended = () => { if(run === aiRun) aiSet("idle"); };
+  await aiAudio.play(); if(run === aiRun) aiSet("talk");
+}
+async function runBriefing(){
+  if(aiState !== "idle"){ aiStop(); return; }
+  touched();
+  const run = ++aiRun;
+  try { aiAudio.src = SILENT; aiAudio.play().catch(() => {}); } catch(e){}   // unlock sound while we still have the tap
+  aiSet("think"); aiCaption("Getting your briefing…", "One moment…");
+  let res = null;
+  try { res = await api({ action:"briefing", facts: briefingFacts(), fallback: briefingFallback(), voice: myVoice() }); }
+  catch(e){ if(e.message === "locked" || e.message === "bad key"){ aiStop(); return; } }
+  if(run !== aiRun) return;
+  const text = (res && res.text) || briefingFallback();
+  aiCaption("Daily briefing", text, res && res.note && !res.audio ? "Using this device's voice — " + res.note : "");
+  if(res && res.audio){
+    try { await playB64(res.audio, run); return; }
+    catch(e){ if(run !== aiRun) return; aiCaption("Daily briefing", text, "Tap ▶ Play to hear it (this screen blocked the sound)."); $("aiStop").textContent = "▶ Play";
+      aiSet("idle"); $("aiStop").hidden = false; $("aiStop").onclick = () => { $("aiStop").onclick = null; $("aiStop").textContent = "Stop"; playB64(res.audio, aiRun).catch(()=>{}); }; return; }
+  }
+  if(!deviceSpeak(text, run)) aiSet("idle");
+}
+function showVoices(){
+  $("aiCap").hidden = false; $("aiHead").textContent = "Choose the briefing voice"; $("aiText").textContent = "Tap a voice to hear it. Your pick is saved on this screen.";
+  $("aiNote").hidden = true; const cur = myVoice() || VOICES[0][0];
+  $("vList").innerHTML = VOICES.map(v => `<button type="button" data-v="${v[0]}" class="${v[0] === cur ? "on" : ""}"><b>${v[1]}</b><small>${v[2]}</small></button>`).join("");
+  $("vList").hidden = false;
+}
+$("vList").addEventListener("click", async e => { const b = e.target.closest("[data-v]"); if(!b) return;
+  store.set("fd-voice", b.dataset.v); $("vList").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  aiStop(); const run = aiRun; try { aiAudio.src = SILENT; aiAudio.play().catch(() => {}); } catch(_){}
+  aiSet("think");
+  try { const r = await api({ action:"speak", voice: b.dataset.v, text: `Hi, I'm ${b.querySelector("b").textContent}. I'll read the Delgado family's daily briefing.` });
+    if(run !== aiRun) return;
+    if(r.audio) await playB64(r.audio, run); else { aiSet("idle"); $("aiNote").hidden = false; $("aiNote").textContent = r.message || "Couldn't play a sample."; } }
+  catch(err){ if(run === aiRun){ aiSet("idle"); $("aiNote").hidden = false; $("aiNote").textContent = "Couldn't play a sample."; } }
+});
+$("aiBtn").addEventListener("click", runBriefing);
+$("aiMini").addEventListener("click", runBriefing);
+$("aiStop").addEventListener("click", () => { if(!$("aiStop").onclick) aiStop(); });
+$("aiVoice").addEventListener("click", () => { aiStop(); showVoices(); });
+$("aiClose").addEventListener("click", () => { aiStop(); $("aiCap").hidden = true; });
+aiSet("idle");
+
 window.__navReady = true;
 setInterval(renderNav, 4000);
 
