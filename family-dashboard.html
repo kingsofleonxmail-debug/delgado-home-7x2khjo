@@ -782,7 +782,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.17</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.18</span></footer>
 </div>
 
 <script>
@@ -1791,15 +1791,33 @@ function renderNav(){
   const S = Object.fromEntries(SECTIONS.map(([id]) => [id, summary(id)]));
   const navHtml = SECTIONS.map(([id, ic, name]) => `<button type="button" class="ni${id === current ? " on" : ""}${S[id].cls === "warn" ? " warn" : ""}" data-sec="${id}" aria-current="${id === current}">
     <span class="ic">${ic}</span><span class="nm">${esc(name)}<span class="sum">${esc(S[id].line)}</span></span><span class="chev">›</span><i class="prog"></i></button>`).join("");
+  const gl = gameLine();
+  const gameNav = `<button type="button" class="ni" data-game="1"><span class="ic">🎮</span><span class="nm">Sheepdog Run<span class="sum">${esc(gl)}</span></span><span class="chev">›</span></button>`;
   const focusedSec = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.sec : null;
-  if($("nav").dataset.html !== navHtml){ $("nav").innerHTML = navHtml; $("nav").dataset.html = navHtml;
+  if($("nav").dataset.html !== navHtml + gameNav){ $("nav").innerHTML = navHtml + gameNav; $("nav").dataset.html = navHtml + gameNav;
     if(focusedSec){ const f = $("nav").querySelector(`[data-sec="${focusedSec}"]`); if(f) f.focus({ preventScroll:true }); } }
   const tilesHtml = SECTIONS.map(([id, ic, , short]) => `<button type="button" class="tile ${S[id].cls}" data-sec="${id}">
-    <span class="ic">${ic}</span><span class="nm">${esc(short)}</span><span class="big">${esc(S[id].big)}</span><span class="sub">${esc(S[id].sub)}</span></button>`).join("");
+    <span class="ic">${ic}</span><span class="nm">${esc(short)}</span><span class="big">${esc(S[id].big)}</span><span class="sub">${esc(S[id].sub)}</span></button>`).join("")
+    + `<button type="button" class="tile" data-game="1"><span class="ic">🎮</span><span class="nm">Game</span><span class="big">Sheepdog Run</span><span class="sub">${esc(gl)}</span></button>`;
   if($("tiles").dataset.html !== tilesHtml){ $("tiles").innerHTML = tilesHtml; $("tiles").dataset.html = tilesHtml; }
   if(isPhone() && SOLO < 0) renderMini();
 }
 const isPhone = () => matchMedia("(max-width:699px)").matches;
+/* ---------- Sheepdog Run (game.html) ---------- */
+function gameLine(){
+  const b = store.get("fd-game-board", {}) || {}, l = store.get("fd-game-best", {}) || {};
+  let top = null;
+  ["Dad","Mom","Julien","Vinny"].forEach(p => { const v = Math.max(l[p] || 0, (b[p] && b[p].score) || 0); if(v && (!top || v > top[1])) top = [p, v]; });
+  return top ? `Top: ${top[0]} · ${top[1]}` : "Jump the bins · play offline too";
+}
+function openGame(){
+  touched();
+  const q = new URLSearchParams(location.search); q.delete("recipe");
+  const qs = q.toString(); location.href = "game.html" + (qs ? "?" + qs : "");
+}
+document.addEventListener("click", e => { if(e.target.closest("[data-game]")){ e.stopPropagation(); openGame(); } }, true);
+// Offline: once the dashboard has opened, losing the internet shows the game instead of an error
+if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 function showSection(id, opts = {}){
   current = id;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.dataset.view === id));
@@ -1858,7 +1876,7 @@ function renderDock(){
   const btn = ([id, ic, nm]) => `<button type="button" data-dock="${id}" class="${id === on ? "on" : ""}" aria-current="${id === on}"><span>${ic}</span>${esc(nm)}</button>`;
   const ciOpen = !$("ciSheet").hidden;
   const html = `<div class="dfix">${btn(["home","🏠","Home"])}<button type="button" data-dock="checkin" class="ci${ciOpen ? " on" : ""}"><span>📍</span>Check in</button></div>`
-    + `<div class="dscroll">${SECTIONS.map(([id, ic, , short]) => btn([id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short])).join("")}</div>`
+    + `<div class="dscroll">${SECTIONS.map(([id, ic, , short]) => btn([id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short])).join("")}<button type="button" data-game="1"><span>🎮</span>Game</button></div>`
     + (window.DelgadoApp ? `<div class="dfix dright"><button type="button" data-dock="app" aria-label="App settings"><i class="gear">${GEAR_SVG}</i>App</button></div>` : "");
   if($("dockIn").dataset.html !== html){
     const keep = $("dockIn").querySelector(".dscroll"), x = keep ? keep.scrollLeft : 0;

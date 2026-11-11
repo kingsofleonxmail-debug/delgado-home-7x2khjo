@@ -94,8 +94,11 @@ const store = {
 const params = new URLSearchParams(location.search);
 const OFFLINE_MODE = params.get("offline") === "1";
 if(OFFLINE_MODE) document.body.classList.add("offline");
-$("back").addEventListener("click", () => { location.href = DASH + location.search.replace(/[?&]offline=1/, "").replace(/^&/, "?"); });
-addEventListener("online", () => { if(OFFLINE_MODE) setTimeout(() => location.replace(DASH), 1200); });
+const backUrl = () => { const q = new URLSearchParams(location.search); q.delete("offline"); const s = q.toString(); return DASH + (s ? "?" + s : ""); };
+$("back").addEventListener("click", () => { location.href = backUrl(); });
+addEventListener("online", () => { if(OFFLINE_MODE) setTimeout(() => location.replace(backUrl()), 1500); });
+if(OFFLINE_MODE) setInterval(() => { if(navigator.onLine) fetch(DASH, { method: "HEAD", cache: "no-store" }).then(r => { if(r.ok) location.replace(backUrl()); }).catch(() => {}); }, 15000);
+if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
 /* ===== Who's playing + leaderboard (local first, family board when online) ===== */
 let who = store.get("fd-game-who", null) || (PEOPLE.includes(store.get("fd-who", "")) ? store.get("fd-who") : "Dad");
