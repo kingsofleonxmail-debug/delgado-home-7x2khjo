@@ -345,6 +345,103 @@ body{
 .checkin[hidden]{display:none}
 .ci-btn{width:100%;font-size:1.05rem;padding:.85rem}
 
+/* ===== Layout: menu + one section (TV/tablet), tiles (phone) ===== */
+.wrap{display:flex;flex-direction:column;min-height:100vh}
+main{display:flex;flex-direction:column;gap:1rem;flex:1;min-height:0}
+.shell{display:grid;grid-template-columns:minmax(17rem,28%) 1fr;gap:1rem;align-items:start;flex:1;min-height:0}
+.tiles,.backbar{display:none}
+.view{display:none;flex-direction:column;gap:1rem}
+.view.on{display:flex}
+.view>.panel,.shell>.panel{grid-column:auto}
+.stage{display:flex;flex-direction:column;gap:1rem;min-width:0}
+.navcol{position:sticky;top:1rem;padding:.6rem}
+.nav{display:flex;flex-direction:column;gap:.3rem}
+.ni{display:flex;align-items:center;gap:.75rem;width:100%;text-align:left;background:none;border:1px solid transparent;color:var(--muted);
+  font:inherit;padding:.7rem .8rem;border-radius:var(--inner);cursor:pointer;position:relative;overflow:hidden}
+.ni:hover{background:rgba(255,255,255,.03)}
+.ni:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ni .ic{width:2rem;height:2rem;border-radius:8px;background:var(--panel2);display:grid;place-items:center;font-size:1rem;flex:none}
+.ni .nm{flex:1;min-width:0;font-weight:700;font-size:.95rem}
+.ni .sum{display:block;font-size:.74rem;color:var(--dim);font-weight:500;margin-top:.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ni .chev{color:var(--dim)}
+.ni.on{background:rgba(var(--accent-rgb),.1);color:var(--accent);border-color:rgba(var(--accent-rgb),.5);box-shadow:0 0 16px rgba(var(--accent-rgb),.15)}
+.ni.on .sum{color:var(--muted)}
+.ni.warn .sum{color:var(--warm)}
+.ni .prog{position:absolute;left:0;bottom:0;height:2px;width:0;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.auto .ni.on .prog{animation:fillbar 20s linear forwards}
+@keyframes fillbar{from{width:0}to{width:100%}}
+.upnext[hidden]{display:none}
+
+/* Quote / verse carousel */
+.quote{position:relative;display:block;padding-right:4.2rem;touch-action:pan-y}
+.qslide{display:none;gap:1.4rem;align-items:center}
+.qslide.on{display:flex;animation:qin .4s ease}
+@keyframes qin{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.qarr{position:absolute;right:1rem;top:50%;transform:translateY(-50%);width:2.6rem;height:2.6rem;border-radius:50%;cursor:pointer;
+  border:1px solid rgba(var(--accent-rgb),.55);background:rgba(var(--accent-rgb),.08);color:var(--accent);font-size:1.4rem;display:grid;place-items:center;font-family:inherit}
+.qarr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.qdots{display:flex;gap:.35rem;margin-top:.6rem;padding-left:7rem}
+.qdots i{width:.4rem;height:.4rem;border-radius:99px;background:var(--line2);transition:.25s}
+.qdots i.on{width:1rem;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.qprog{position:absolute;left:0;bottom:0;height:2px;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.auto .qprog.run{animation:fillbar 30s linear forwards}
+.quote blockquote{font-size:1.35rem}
+
+/* Calendar list */
+.cday{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:800;margin:.9rem 0 .1rem}
+.cday:first-child{margin-top:.2rem}
+.dot.m{background:var(--accent2);box-shadow:0 0 8px var(--accent2)}
+
+/* ----- TV / big screens: fill the whole screen ----- */
+@media(min-width:1300px){
+  html{font-size:clamp(14px,.62vw + 5px,30px)}
+  .wrap{height:100vh;overflow:hidden;padding-bottom:.8rem}
+  .shell{align-items:stretch}
+  .navcol{position:static;display:flex;flex-direction:column}
+  .nav{flex:1;justify-content:space-between}
+  .ni{flex:1}
+  .stage{overflow-y:auto;scrollbar-width:none}
+  .stage::-webkit-scrollbar{display:none}
+  .foot{margin-top:.6rem;padding-top:.5rem}
+}
+/* ----- Phone: tiles, tap one to open it ----- */
+@media(max-width:699px){
+  .shell{display:block}
+  .navcol,.upnext{display:none !important}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stage{display:none}
+  body.viewing .stage{display:flex}
+  body.viewing .tiles,body.viewing .top,body.viewing .quote,body.viewing .foot{display:none}
+  .backbar{display:flex;align-items:center;position:sticky;top:0;z-index:5;margin:-.2rem -16px .2rem;padding:.7rem 16px;
+    background:rgba(8,13,27,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .backbar button{background:none;border:0;color:var(--accent);font:inherit;font-weight:700;font-size:1rem;padding:.3rem .2rem;cursor:pointer}
+  .btitle{flex:1;text-align:center;font-weight:800;margin-right:4rem}
+  .quote{padding-right:3.4rem}
+  .qslide{gap:.9rem;align-items:flex-start}
+  .quote .emblem{width:3rem;height:3rem}
+  .quote blockquote{font-size:1.05rem}
+  .qdots{padding-left:3.9rem}
+  .qslide .sh span:last-child{display:none}
+  .qarr{width:2.2rem;height:2.2rem;right:.7rem}
+}
+.tile{text-align:left;font:inherit;color:inherit;cursor:pointer;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--radius);padding:12px;min-height:118px;display:flex;flex-direction:column;transition:transform .1s}
+.tile:active{transform:scale(.97)}
+.tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tile .ic{font-size:19px;line-height:1}
+.tile .nm{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:9px}
+.tile .big{font-size:19px;font-weight:800;margin-top:3px;line-height:1.15;overflow-wrap:anywhere}
+.tile .sub{font-size:11px;color:var(--muted);margin-top:auto;padding-top:6px;line-height:1.3}
+.tile.hot{border-color:rgba(var(--accent-rgb),.55);box-shadow:0 0 18px rgba(var(--accent-rgb),.15)}
+.tile.hot .big{color:var(--accent)}
+.tile.warn{border-color:color-mix(in srgb,var(--warm) 55%,transparent)}
+.tile.warn .big{color:var(--warm)}
+/* Boys' personal pages (?kid=…) */
+.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext{display:none !important}
+.solo .shell{display:block}
+.solo .stage{display:flex !important}
+.solo .wrap{height:auto;overflow:visible}
+
 .foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
 </style>
@@ -400,16 +497,35 @@ body{
     <div class="datechip"><span id="calIc"></span><div><b id="clock">—</b><span id="dateTxt"></span></div></div>
   </header>
 
-  <main class="grid">
-    <section class="panel quote" id="quotePanel">
-      <div class="emblem" id="qEmblem" aria-hidden="true"></div>
-      <div class="qbody">
-        <div class="sh"><span>Quote of the day</span><span id="qDate"></span></div>
-        <blockquote id="qText"></blockquote>
-        <div class="qwho"><b id="qWho"></b><span id="qRole"></span><span class="tag" id="qAttr" hidden>Attributed</span></div>
+  <main>
+    <section class="panel quote" id="quotePanel" aria-roledescription="carousel" aria-label="Quote and verse of the day">
+      <div class="qslide on" data-q="0">
+        <div class="emblem" id="qEmblem" aria-hidden="true"></div>
+        <div class="qbody">
+          <div class="sh"><span>Napoleon · quote of the day</span><span id="qDate"></span></div>
+          <blockquote id="qText"></blockquote>
+          <div class="qwho"><b id="qWho">Napoleon Bonaparte</b><span>Emperor of the French</span><span class="tag cool">Attributed</span></div>
+        </div>
       </div>
+      <div class="qslide" data-q="1">
+        <div class="emblem" id="vEmblem" aria-hidden="true"></div>
+        <div class="qbody">
+          <div class="sh"><span>Bible verse of the day</span><span>King James Version</span></div>
+          <blockquote id="vText"></blockquote>
+          <div class="qwho"><b id="vRef"></b><span>KJV</span></div>
+        </div>
+      </div>
+      <button type="button" class="qarr" id="qArr" aria-label="Show the Bible verse">›</button>
+      <div class="qdots" aria-hidden="true"><i class="on"></i><i></i></div>
+      <div class="qprog" id="qProg"></div>
     </section>
 
+    <div class="shell">
+      <nav class="panel navcol" id="navcol" aria-label="Sections"><div class="nav" id="nav"></div></nav>
+      <div class="tiles" id="tiles"></div>
+      <div class="stage" id="stage">
+        <div class="backbar" id="backbar"><button type="button" id="backBtn">‹ Home</button><div class="btitle" id="stageTitle"></div></div>
+      <div class="view" data-view="school">
     <section class="panel s8 am checklist">
       <div class="ph"><div><div class="pt" id="clTitle">School tracker</div><div class="ps">Ticks itself from their iPhones — or tap to tick</div></div><span class="tag good" id="clTotal"></span></div>
       <div class="kids" id="kids"></div>
@@ -420,12 +536,14 @@ body{
         <div class="ps" id="ciStatus"></div>
       </form>
     </section>
-
+      </div>
+      <div class="view" data-view="calendar">
     <section class="panel s4 am">
-      <div class="ph"><div><div class="pt">Today's plans</div><div class="ps" id="planSrc">From your calendar</div></div></div>
+      <div class="ph"><div><div class="pt">Calendar</div><div class="ps" id="planSrc">From your calendar</div></div></div>
       <div id="today"></div>
     </section>
-
+      </div>
+      <div class="view" data-view="mom">
     <section class="panel s8" id="momPanel">
       <div class="ph"><div><div class="pt"><span id="momName"></span>'s work schedule</div><div class="ps">Next 2 weeks — synced everywhere</div></div><span class="tag" id="momTag"></span></div>
       <div class="momstat" id="momStat"></div>
@@ -450,7 +568,8 @@ body{
         </div>
       </div>
     </section>
-
+      </div>
+      <div class="view" data-view="nap">
     <section class="panel s4">
       <div class="ph"><div><div class="pt"><span id="napName"></span>'s naps</div><div class="ps">Log when the nap starts and ends</div></div></div>
       <div class="napstat" id="napStat"></div>
@@ -464,7 +583,8 @@ body{
       <div class="sh" style="margin-top:1rem"><span>Last 7 days</span><span id="napWeekTot"></span></div>
       <svg class="mini" id="napWeek"></svg>
     </section>
-
+      </div>
+      <div class="view" data-view="pets">
     <section class="panel">
       <div class="ph"><div><div class="pt">Pets</div><div class="ps">Tap to log — time-stamped and synced on every screen</div></div><span class="tag acc" id="petTotal"></span></div>
       <div class="whorow">Logging as <div class="seg" id="who"></div></div>
@@ -474,7 +594,8 @@ body{
         <div class="subp"><div class="sh"><span>Last 7 days</span><span id="weekCount"></span></div><svg class="mini" id="petWeek"></svg><div class="tags" id="byWho"></div></div>
       </div>
     </section>
-
+      </div>
+      <div class="view" data-view="shop">
     <section class="panel" id="shopPanel">
       <div class="ph"><div><div class="pt">Shopping list</div><div class="ps">Shared — add from any phone</div></div><span class="tag acc" id="shopCount"></span></div>
       <form class="addrow" id="shopForm" autocomplete="off">
@@ -485,12 +606,12 @@ body{
       <div class="shop" id="shopList"></div>
       <div class="shopfoot"><button type="button" class="btn small" id="shopClear" hidden></button></div>
     </section>
-
+      </div>
+      <div class="view" data-view="weather">
     <section class="panel">
       <div class="ph"><div><div class="pt">Weekend preview</div><div class="ps">Forecast and plans for Saturday &amp; Sunday</div></div></div>
       <div class="wk" id="weekend"></div>
     </section>
-
     <section class="panel">
       <div class="ph">
         <div><div class="pt">7-day temperature</div><div class="ps">Live forecast for <span id="locName"></span></div></div>
@@ -499,7 +620,8 @@ body{
       <div class="wxnow"><span id="wxIc"></span><span class="t" id="wxTemp">—</span><span class="d" id="wxDesc">Loading forecast…</span></div>
       <svg class="chart" id="chart" viewBox="0 0 720 185"></svg>
     </section>
-
+      </div>
+      <div class="view" data-view="countdown">
     <section class="panel" id="cdPanel">
       <div class="ph"><div><div class="pt">Countdowns</div><div class="ps">Set by Dad &amp; Mom — the nearest shows at the top</div></div></div>
       <div id="cdList"></div>
@@ -513,9 +635,13 @@ body{
         <div class="ps" id="cdNote" style="margin-top:.6rem"></div>
       </div>
     </section>
+      </div>
+        <section class="panel upnext" id="upNextPanel"><div class="ph"><div><div class="pt">Coming up</div><div class="ps">Calendar + Mom's shifts</div></div></div><div id="upNext"></div></section>
+      </div>
+    </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.09f</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.10</span></footer>
 </div>
 
 <script>
@@ -600,6 +726,25 @@ function calEventsOn(d){
     .sort((a,b) => (a.time||"").localeCompare(b.time||""));
 }
 const evTime = e => e.time ? fmt12(e.time) : (e.allDay ? "All day" : "");
+/** Everything coming up (calendar + Mom's shifts), grouped by day. limit = max items (0 = all 3 weeks). */
+function upcomingHtml(limit){
+  const now = new Date();
+  let html = "", n = 0;
+  for(let i = 0; i < 21 && (!limit || n < limit); i++){
+    const d = new Date(now); d.setDate(now.getDate() + i);
+    let ev = eventsOn(d);
+    if(!ev.length) continue;
+    if(limit) ev = ev.slice(0, limit - n);
+    n += ev.length;
+    const label = i === 0 ? `Today · ${DAYS[d.getDay()]} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}` : i === 1 ? `Tomorrow · ${DAYS[d.getDay()]} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}` : `${DAYS[d.getDay()]} ${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}`;
+    html += `<div class="cday">${label}</div>` + ev.map(e => `<div class="row"><span class="dot${/ works · /.test(e.title) ? " m" : ""}"></span><span class="t">${esc(e.title)}</span><span class="tm">${evTime(e)}</span></div>`).join("");
+  }
+  return html || `<div class="empty">Nothing on the calendar for the next 3 weeks.</div>`;
+}
+function renderUpcoming(){
+  if($("today")) $("today").innerHTML = upcomingHtml(0);
+  if($("upNext")) $("upNext").innerHTML = upcomingHtml(6);
+}
 const evRows = ev => ev.length
   ? ev.map(e => `<div class="row"><span class="dot"></span><span class="t">${esc(e.title)}</span><span class="tm">${evTime(e)}</span></div>`).join("")
   : `<div class="empty">Nothing planned.</div>`;
@@ -670,8 +815,8 @@ function renderDay(){
   renderCountdowns();
 
   // Today's plans
-  $("today").innerHTML = evRows(eventsOn(now));
-  $("planSrc").textContent = CONFIG.syncUrl ? "From your Google Calendar" : "From the dashboard settings";
+  renderUpcoming();
+  $("planSrc").textContent = (CONFIG.syncUrl ? "Next 3 weeks from your Google Calendar" : "Next 3 weeks") + " + Mom's shifts";
 
 
   renderWeather();
@@ -692,7 +837,7 @@ function smoothPath(pts){
   }
   return d;
 }
-function renderWeather(){
+function renderWeather(){ navSoon();
   if(!WX) return;
   const c = WX.current, t = wxDay(new Date());
   const [ic, desc] = wxKind(c.weather_code, c.is_day);
@@ -750,7 +895,7 @@ let pending = 0;
 const SOLO = (() => { const q = (new URLSearchParams(location.search).get("kid") || "").toLowerCase();
   return CONFIG.kids.findIndex(k => k.name.toLowerCase() === q); })();
 if(SOLO >= 0){ document.body.classList.add("solo"); document.title = `${CONFIG.kids[SOLO].name}'s school tracker`; }
-function renderChecklist(){
+function renderChecklist(){ navSoon();
   const now = new Date(), wd = now.getDay()>0 && now.getDay()<6;
   $("clTitle").textContent = SOLO >= 0 ? `${CONFIG.kids[SOLO].name}'s school tracker` : "School tracker";
   const state = store.get(checkKey()) || {};
@@ -827,7 +972,7 @@ async function sendOp(o){
   applyOp(o); pruneLogs(); store.set("fd-logs", LOGS); store.set("fd-shop", SHOP); store.set("fd-shifts", SHIFTS); store.set("fd-countdowns", COUNTDOWNS);
   if(o.op.startsWith("shop")) renderShop();
   else if(o.op.startsWith("cd")) renderCountdowns();
-  else if(o.op.startsWith("shift")){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
+  else if(o.op.startsWith("shift")){ renderMom(); renderUpcoming(); renderWeekend(); }
   else renderLogs();
   if(!CONFIG.syncUrl) return;
   pending++;
@@ -837,7 +982,7 @@ async function sendOp(o){
   pullState();
 }
 
-function renderLogs(){ renderWho(); renderPets(); renderNap(); }
+function renderLogs(){ navSoon(); renderWho(); renderPets(); renderNap(); }
 
 function renderWho(){
   const html = CONFIG.people.map(p => `<button type="button" class="${p===who?"on":""}" data-who="${esc(p)}" aria-pressed="${p===who}">${esc(p)}</button>`).join("");
@@ -1002,7 +1147,7 @@ function fmtDay(key){
   const base = `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()].slice(0,3)} ${d.getDate()}`;
   return t === 0 ? `Today · ${base}` : t === 1 ? `Tomorrow · ${base}` : base;
 }
-function renderMom(){
+function renderMom(){ navSoon();
   const M = CONFIG.mom, now = new Date(), todayKey = ymd(now);
   $("momName").textContent = M.name;
   const todays = SHIFTS.filter(x => x.date === todayKey);
@@ -1064,59 +1209,105 @@ $("shList").addEventListener("click", e => {
   if(confirm(`Delete ${fmtDay(x.date)} · ${hmShort(x.start)}–${hmShort(x.end)} at ${x.loc}?`)) sendOp({ op:"shiftDel", id: x.id });
 });
 
-/* ---------- Quote of the day ---------- */
-const EMBLEMS = {
-  napoleon: '<path d="M3 15c2.5-5 5.5-8 9-8s6.5 3 9 8c-3 1.4-6 2-9 2s-6-.6-9-2z"/><path d="M8.5 9.2c1-.9 2.2-1.4 3.5-1.4s2.5.5 3.5 1.4"/><circle cx="12" cy="11.5" r="1.6"/><path d="M5 16.5c2.2.9 4.5 1.3 7 1.3s4.8-.4 7-1.3"/>',
-  caesar:   '<path d="M7 19C3.5 15.5 3.5 8.5 7.5 5"/><path d="M17 19c3.5-3.5 3.5-10.5-.5-14"/><path d="M5.2 15.5l-2-.5M4.6 12l-2-.9M5 8.6l-1.6-1.4M6.6 6l-.9-1.9"/><path d="M18.8 15.5l2-.5M19.4 12l2-.9M19 8.6l1.6-1.4M17.4 6l.9-1.9"/><path d="M9.5 20.5h5"/>',
-  genghis:  '<path d="M6 3c7 3 7 15 0 18"/><path d="M6 3v18"/><path d="M4 12h17"/><path d="M18 9.5l3 2.5-3 2.5"/><path d="M4 12l-1.5-1.5M4 12l-1.5 1.5"/>',
-  alexander:'<circle cx="12" cy="12" r="2.2"/>' + Array.from({length:16}, (_,i) => { const a = i*Math.PI/8, r1 = 3.6, r2 = i%2 ? 7 : 9.6;
-    return `<path d="M${(12+Math.cos(a-.12)*r1).toFixed(2)} ${(12+Math.sin(a-.12)*r1).toFixed(2)} L${(12+Math.cos(a)*r2).toFixed(2)} ${(12+Math.sin(a)*r2).toFixed(2)} L${(12+Math.cos(a+.12)*r1).toFixed(2)} ${(12+Math.sin(a+.12)*r1).toFixed(2)}"/>`; }).join("")
-};
-const LEADERS = {
-  napoleon:  { name:"Napoleon Bonaparte", role:"Emperor of the French · 1769–1821" },
-  caesar:    { name:"Julius Caesar",      role:"Roman general & statesman · 100–44 BC" },
-  genghis:   { name:"Genghis Khan",       role:"Founder of the Mongol Empire · c. 1162–1227" },
-  alexander: { name:"Alexander the Great",role:"King of Macedon · 356–323 BC" }
-};
-// [leader, quote, attributed?] — "attributed" means it's widely credited to them but not found in their own writings
-const QUOTES = [
-  ["napoleon","Victory belongs to the most persevering.",true],
-  ["caesar","I came, I saw, I conquered.",false],
-  ["genghis","An action committed in anger is an action doomed to failure.",true],
-  ["alexander","There is nothing impossible to him who will try.",true],
-  ["napoleon","A leader is a dealer in hope.",true],
-  ["caesar","Men willingly believe what they wish.",false],
-  ["genghis","If you're afraid, don't do it. If you're doing it, don't be afraid.",true],
-  ["alexander","I am not afraid of an army of lions led by a sheep; I am afraid of an army of sheep led by a lion.",true],
-  ["napoleon","Take time to deliberate, but when the time for action comes, stop thinking and go in.",true],
-  ["caesar","The die is cast.",false],
-  ["genghis","Conquering the world on horseback is easy; it is dismounting and governing that is hard.",true],
-  ["alexander","Upon the conduct of each depends the fate of all.",true],
-  ["napoleon","Impossible is a word to be found only in the dictionary of fools.",true],
-  ["caesar","In war, great events are the result of small causes.",false],
-  ["genghis","Even when a friend does something you do not like, he continues to be your friend.",true],
-  ["alexander","I would rather live a short life of glory than a long one of obscurity.",true],
-  ["napoleon","Never interrupt your enemy when he is making a mistake.",true],
-  ["caesar","Experience is the teacher of all things.",false],
-  ["napoleon","Courage isn't having the strength to go on; it is going on when you don't have strength.",true],
-  ["alexander","With the right attitude, self-imposed limitations vanish.",true]
+/* ---------- Napoleon quote + KJV verse of the day ---------- */
+const NAPOLEON_ICON = '<path d="M3 15c2.5-5 5.5-8 9-8s6.5 3 9 8c-3 1.4-6 2-9 2s-6-.6-9-2z"/><path d="M8.5 9.2c1-.9 2.2-1.4 3.5-1.4s2.5.5 3.5 1.4"/><circle cx="12" cy="11.5" r="1.6"/><path d="M5 16.5c2.2.9 4.5 1.3 7 1.3s4.8-.4 7-1.3"/>';
+const BIBLE_ICON = '<path d="M4 5c3-1.5 5.5-1.5 8 0v14c-2.5-1.5-5-1.5-8 0z"/><path d="M20 5c-3-1.5-5.5-1.5-8 0v14c2.5-1.5 5-1.5 8 0z"/><path d="M8 8v4M6.5 9.5h3"/>';
+// Widely credited to Napoleon; most aren't found in his own writings, so they're marked "Attributed".
+const NAPOLEON = [
+  "Victory belongs to the most persevering.",
+  "A leader is a dealer in hope.",
+  "Impossible is a word to be found only in the dictionary of fools.",
+  "Take time to deliberate, but when the time for action has arrived, stop thinking and go in.",
+  "Never interrupt your enemy when he is making a mistake.",
+  "Courage isn't having the strength to go on; it is going on when you don't have strength.",
+  "Ability is nothing without opportunity.",
+  "Imagination rules the world.",
+  "Glory is fleeting, but obscurity is forever.",
+  "He who fears being conquered is sure of defeat.",
+  "There are only two forces in the world, the sword and the spirit. In the long run the sword will always be conquered by the spirit.",
+  "Nothing is more difficult, and therefore more precious, than to be able to decide.",
+  "Great ambition is the passion of a great character.",
+  "The best cure for the body is a quiet mind.",
+  "You must not fight too often with one enemy, or you will teach him all your art of war.",
+  "Let France have good mothers, and she will have good sons.",
+  "One must change one's tactics every ten years if one wishes to maintain one's superiority.",
+  "Riches do not consist in the possession of treasures, but in the use made of them.",
+  "Ten people who speak make more noise than ten thousand who are silent.",
+  "The torment of precautions often exceeds the dangers to be avoided.",
+  "If you want a thing done well, do it yourself.",
+  "Water, air, and cleanness are the chief articles in my pharmacy.",
+  "There is only one step from the sublime to the ridiculous.",
+  "Public instruction should be the first object of government.",
+  "Death is nothing, but to live defeated and inglorious is to die daily.",
+  "To do all that one is able to do is to be a man; to do all that one would like to do is to be a god.",
+  "Soldiers usually win the battles and generals get the credit for them.",
+  "If they want peace, nations should avoid the pin-pricks that precede cannon shots.",
+  "He who knows how to flatter also knows how to slander."
 ];
+// King James Version (public domain)
+const VERSES = [
+  ["Joshua 1:9","Have not I commanded thee? Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest."],
+  ["Philippians 4:13","I can do all things through Christ which strengtheneth me."],
+  ["Proverbs 3:5\u20136","Trust in the LORD with all thine heart; and lean not unto thine own understanding. In all thy ways acknowledge him, and he shall direct thy paths."],
+  ["Isaiah 40:31","But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles; they shall run, and not be weary; and they shall walk, and not faint."],
+  ["Psalm 23:1","The LORD is my shepherd; I shall not want."],
+  ["Psalm 46:1","God is our refuge and strength, a very present help in trouble."],
+  ["Psalm 118:24","This is the day which the LORD hath made; we will rejoice and be glad in it."],
+  ["Jeremiah 29:11","For I know the thoughts that I think toward you, saith the LORD, thoughts of peace, and not of evil, to give you an expected end."],
+  ["Romans 8:28","And we know that all things work together for good to them that love God, to them who are the called according to his purpose."],
+  ["Matthew 5:16","Let your light so shine before men, that they may see your good works, and glorify your Father which is in heaven."],
+  ["Matthew 11:28","Come unto me, all ye that labour and are heavy laden, and I will give you rest."],
+  ["John 3:16","For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life."],
+  ["John 14:27","Peace I leave with you, my peace I give unto you: not as the world giveth, give I unto you. Let not your heart be troubled, neither let it be afraid."],
+  ["1 Corinthians 16:14","Let all your things be done with charity."],
+  ["Galatians 6:9","And let us not be weary in well doing: for in due season we shall reap, if we faint not."],
+  ["Ephesians 4:32","And be ye kind one to another, tenderhearted, forgiving one another, even as God for Christ's sake hath forgiven you."],
+  ["Ephesians 6:1","Children, obey your parents in the Lord: for this is right."],
+  ["Philippians 4:6","Be careful for nothing; but in every thing by prayer and supplication with thanksgiving let your requests be made known unto God."],
+  ["Proverbs 22:6","Train up a child in the way he should go: and when he is old, he will not depart from it."],
+  ["Proverbs 17:22","A merry heart doeth good like a medicine: but a broken spirit drieth the bones."],
+  ["Proverbs 16:3","Commit thy works unto the LORD, and thy thoughts shall be established."],
+  ["Psalm 121:8","The LORD shall preserve thy going out and thy coming in from this time forth, and even for evermore."],
+  ["Psalm 56:3","What time I am afraid, I will trust in thee."],
+  ["Deuteronomy 31:6","Be strong and of a good courage, fear not, nor be afraid of them: for the LORD thy God, he it is that doth go with thee; he will not fail thee, nor forsake thee."],
+  ["Lamentations 3:22\u201323","It is of the LORD's mercies that we are not consumed, because his compassions fail not. They are new every morning: great is thy faithfulness."],
+  ["Micah 6:8","He hath shewed thee, O man, what is good; and what doth the LORD require of thee, but to do justly, and to love mercy, and to walk humbly with thy God?"],
+  ["2 Timothy 1:7","For God hath not given us the spirit of fear; but of power, and of love, and of a sound mind."],
+  ["Hebrews 13:8","Jesus Christ the same yesterday, and to day, and for ever."],
+  ["1 Peter 5:7","Casting all your care upon him; for he careth for you."],
+  ["Psalm 119:105","Thy word is a lamp unto my feet, and a light unto my path."],
+  ["Isaiah 41:10","Fear thou not; for I am with thee: be not dismayed; for I am thy God: I will strengthen thee; yea, I will help thee; yea, I will uphold thee with the right hand of my righteousness."]
+];
+const iconSvg = paths => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 function renderQuote(){
   const now = new Date();
-  const day = Math.floor((parseYmd(ymd(now)) - new Date(now.getFullYear(), 0, 0)) / 864e5);   // same quote on every screen today
-  const [who, text, attributed] = QUOTES[(day + now.getFullYear()) % QUOTES.length];
-  $("qEmblem").innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${EMBLEMS[who]}</svg>`;
-  $("qText").textContent = text;
-  $("qWho").textContent = LEADERS[who].name;
-  $("qRole").textContent = LEADERS[who].role;
-  $("qAttr").hidden = !attributed;
-  $("qAttr").className = "tag cool";
+  const day = Math.floor((parseYmd(ymd(now)) - new Date(now.getFullYear(), 0, 0)) / 864e5) + now.getFullYear() * 7;   // same on every screen today
+  $("qEmblem").innerHTML = iconSvg(NAPOLEON_ICON);
+  $("vEmblem").innerHTML = iconSvg(BIBLE_ICON);
+  $("qText").textContent = NAPOLEON[day % NAPOLEON.length];
+  const v = VERSES[day % VERSES.length];
+  $("vText").textContent = v[1];
+  $("vRef").textContent = v[0];
   $("qDate").textContent = `${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}`;
 }
+let qSlide = 0;
+function showSlide(n){
+  qSlide = n;
+  document.querySelectorAll(".qslide").forEach(el => el.classList.toggle("on", +el.dataset.q === n));
+  document.querySelectorAll(".qdots i").forEach((d,i) => d.classList.toggle("on", i === n));
+  $("qArr").textContent = n ? "\u2039" : "\u203a";
+  $("qArr").setAttribute("aria-label", n ? "Show the Napoleon quote" : "Show the Bible verse");
+  const pr = $("qProg"); pr.classList.remove("run"); void pr.offsetWidth; pr.classList.add("run");
+}
+$("qArr").addEventListener("click", () => showSlide(qSlide ? 0 : 1));
+let qx = null;
+$("quotePanel").addEventListener("touchstart", e => { qx = e.touches[0].clientX; }, { passive:true });
+$("quotePanel").addEventListener("touchend", e => { if(qx === null) return; const dx = e.changedTouches[0].clientX - qx; qx = null;
+  if(dx < -40) showSlide(1); else if(dx > 40) showSlide(0); });
 
 /* ---------- Countdowns (synced; Dad & Mom can edit) ---------- */
 let COUNTDOWNS = store.get("fd-countdowns") || CONFIG.countdowns.map((c,i) => ({ id:"d"+i, name:c.name, date:c.date }));
-function renderCountdowns(){
+function renderCountdowns(){ navSoon();
   const now = new Date();
   const list = COUNTDOWNS.map(c => ({...c, d: dayDiff(now, parseYmd(c.date))})).filter(c => c.d >= 0).sort((a,b) => a.d - b.d);
   const next = list[0];
@@ -1263,7 +1454,7 @@ $("rcpAdd").addEventListener("click", () => {
 })();
 
 /* ---------- Shopping list ---------- */
-function renderShop(){
+function renderShop(){ navSoon();
   const AISLE_ORDER = ["Produce","Meat & Seafood","Dairy & Eggs","Bakery","Pantry","Spices & Baking","Frozen","Drinks","Other",""];
   const sec = i => { const k = AISLE_ORDER.indexOf(i.section || ""); return k < 0 ? 99 : k; };
   const items = SHOP.slice().sort((a,b) => (a.done - b.done) || (sec(a) - sec(b)) || (a.ts - b.ts));
@@ -1348,7 +1539,7 @@ async function pullState(){
       if(JSON.stringify(w) !== JSON.stringify(WORK)){ WORK = w; store.set("fd-work", WORK); momChanged = true; } }
     if(Array.isArray(data.countdowns) && JSON.stringify(data.countdowns) !== JSON.stringify(COUNTDOWNS)){
       COUNTDOWNS = data.countdowns; store.set("fd-countdowns", COUNTDOWNS); renderCountdowns(); }
-    if(momChanged){ renderMom(); $("today").innerHTML = evRows(eventsOn(new Date())); renderWeekend(); }
+    if(momChanged){ renderMom(); renderUpcoming(); renderWeekend(); }
     setSync(true);
   }catch(e){ setSync(false); }
 }
@@ -1397,10 +1588,128 @@ async function loadWeather(){
 async function keepAwake(){ try { if("wakeLock" in navigator) await navigator.wakeLock.request("screen"); } catch(e){} }
 document.addEventListener("visibilitychange", () => { if(document.visibilityState==="visible"){ keepAwake(); loadWeather(); pullCalendar(); pullState(); } });
 
+/* ---------- Sections: menu (TV/tablet), tiles (phone), auto loop (TV) ---------- */
+const SECTIONS = [
+  ["school","🏫","School tracker","School"],
+  ["calendar","📅","Calendar","Calendar"],
+  ["mom","🏥","Mom's schedule","Mom"],
+  ["nap","😴","Sebastian's naps","Sebastian"],
+  ["pets","🐾","Pets","Pets"],
+  ["shop","🛒","Shopping list","Shopping"],
+  ["weather","🌤️","Weekend & weather","Weather"],
+  ["countdown","⭐","Countdowns","Countdown"]
+];
+const txt = sel => { const el = document.querySelector(sel); return el ? el.textContent.trim() : ""; };
+function summary(id){
+  const now = new Date();
+  if(id === "school"){
+    const st = store.get(checkKey()) || {};
+    const kids = CONFIG.kids.map((k,i) => ({ n:k.name, l:(st[i]||[])[0], a:(st[i]||[])[1] }));
+    const at = kids.filter(k => k.a).length, way = kids.filter(k => k.l && !k.a);
+    const wd = now.getDay() > 0 && now.getDay() < 6;
+    const line = kids.map(k => k.a ? `${k.n} at school${typeof k.a === "number" ? " " + tstr(k.a) : ""}` : k.l ? `${k.n} on the way` : `${k.n} home`).join(" · ");
+    return { line, big: `${at} of ${kids.length}`, sub: way.length ? "at school · " + way.map(k => k.n).join(", ") + " on the way" : at ? "at school" : (wd ? "Not left yet" : "No school today"),
+             cls: way.length ? "warn" : (at === kids.length && at ? "hot" : "") };
+  }
+  if(id === "calendar"){
+    const nowHm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    let next = null, count = 0;
+    for(let i = 0; i < 21; i++){ const d = new Date(now); d.setDate(now.getDate() + i);
+      const ev = eventsOn(d).filter(e => i > 0 || e.allDay || !e.time || e.time >= nowHm); count += ev.length;
+      if(!next && ev.length) next = { e: ev[0], i, d }; }
+    if(!next) return { line:"Nothing coming up", big:"Free", sub:"Nothing in the next 3 weeks", cls:"" };
+    const when = next.i === 0 ? (next.e.time ? fmt12(next.e.time) : "today") : next.i === 1 ? "tomorrow" : DAYS[next.d.getDay()];
+    return { line:`Next: ${next.e.title} · ${when}`, big: next.e.title.length > 18 ? next.e.title.slice(0,17) + "…" : next.e.title, sub:`${when} · ${count} coming up`, cls:"" };
+  }
+  if(id === "mom"){ const v = txt("#momStat .v"), d = txt("#momStat .d"); return { line:`${v}${d ? " · " + d : ""}`, big:v, sub:d, cls: /At work/.test(v) ? "hot" : "" }; }
+  if(id === "nap"){ const v = txt("#napStat .v"), d = txt("#napStat .d"); return { line: v + (/Napping/.test(v) && d ? " · " + d.split("·")[0].trim() : ""), big: v.replace(" logged",""), sub: d, cls: /Napping/.test(v) ? "hot" : "" }; }
+  if(id === "pets"){
+    const today = (LOGS[ymd(now)] || []).filter(e => ACTS[e.type]).sort((a,b) => a.ts - b.ts), last = today[today.length-1];
+    const lastTxt = last ? `${ACTS[last.type].label} ${tstr(last.ts)}` : "Nothing logged yet";
+    const fed = ["dogfed","catfed"].map(k => today.some(e => e.type === k) ? null : ACTS[k].label.replace("Fed ","")).filter(Boolean);
+    return { line: today.length ? `${today.length} today · last: ${lastTxt}` : "Nothing logged yet today", big:`${today.length} today`, sub: fed.length ? `Not fed yet: ${fed.join(", ")}` : lastTxt, cls:"" };
+  }
+  if(id === "shop"){ const left = SHOP.filter(i => !i.done);
+    return { line: left.length ? `${left.length} to buy · ${left.slice(0,2).map(i => i.text.replace(/ \(.*/,"")).join(", ")}${left.length > 2 ? "…" : ""}` : "List is empty",
+             big: left.length ? `${left.length} to buy` : "All done", sub: left.slice(0,2).map(i => i.text.replace(/ \(.*/,"")).join(", ") + (left.length > 2 ? "…" : ""), cls:"" }; }
+  if(id === "weather"){
+    if(!WX) return { line:"Loading forecast…", big:"—", sub:"Loading forecast…", cls:"" };
+    const dow = now.getDay(), sat = new Date(now); sat.setDate(now.getDate() + (dow === 0 ? -1 : 6 - dow));
+    const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+    const ws = [sat, sun].map(d => { const w = wxDay(d); return w ? `${DAYS[d.getDay()]} ${deg(w.hi)}` : null; }).filter(Boolean).join(" · ");
+    const desc = wxKind(WX.current.weather_code, WX.current.is_day)[1];
+    return { line:`${deg(WX.current.temperature_2m)} ${desc}${ws ? " · " + ws : ""}`, big: deg(WX.current.temperature_2m), sub: `${desc}${ws ? " · " + ws : ""}`, cls:"" };
+  }
+  if(id === "countdown"){ const n = txt("#kCd"), t = txt("#kCdTag"); return { line: t ? `${n} to ${t}` : "Nothing set", big: n, sub: t ? "to " + t : "Add one", cls:"" }; }
+  return { line:"", big:"", sub:"", cls:"" };
+}
+let current = "school";
+var navT = null;
+function navSoon(){ if(window.__navReady){ clearTimeout(navT); navT = setTimeout(renderNav, 60); } }
+function renderNav(){
+  const S = Object.fromEntries(SECTIONS.map(([id]) => [id, summary(id)]));
+  const navHtml = SECTIONS.map(([id, ic, name]) => `<button type="button" class="ni${id === current ? " on" : ""}${S[id].cls === "warn" ? " warn" : ""}" data-sec="${id}" aria-current="${id === current}">
+    <span class="ic">${ic}</span><span class="nm">${esc(name)}<span class="sum">${esc(S[id].line)}</span></span><span class="chev">›</span><i class="prog"></i></button>`).join("");
+  const focusedSec = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.sec : null;
+  if($("nav").dataset.html !== navHtml){ $("nav").innerHTML = navHtml; $("nav").dataset.html = navHtml;
+    if(focusedSec){ const f = $("nav").querySelector(`[data-sec="${focusedSec}"]`); if(f) f.focus({ preventScroll:true }); } }
+  const tilesHtml = SECTIONS.map(([id, ic, , short]) => `<button type="button" class="tile ${S[id].cls}" data-sec="${id}">
+    <span class="ic">${ic}</span><span class="nm">${esc(short)}</span><span class="big">${esc(S[id].big)}</span><span class="sub">${esc(S[id].sub)}</span></button>`).join("");
+  if($("tiles").dataset.html !== tilesHtml){ $("tiles").innerHTML = tilesHtml; $("tiles").dataset.html = tilesHtml; }
+}
+const isPhone = () => matchMedia("(max-width:699px)").matches;
+function showSection(id, opts = {}){
+  current = id;
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.dataset.view === id));
+  $("upNextPanel").hidden = (id === "calendar");
+  const sec = SECTIONS.find(x => x[0] === id);
+  $("stageTitle").textContent = sec ? sec[1] + " " + sec[2] : "";
+  $("nav").dataset.html = ""; renderNav();
+  if(id === "weather") renderWeather();
+  if(id === "pets" || id === "nap") renderLogs();
+  if(!opts.keepScroll) $("stage").scrollTop = 0;
+  if(isPhone() && opts.open){
+    document.body.classList.add("viewing"); scrollTo(0, 0);
+    if(!opts.fromHistory) try { history.pushState({ sec:id }, ""); } catch(e) {}
+    setTimeout(() => $("backBtn").focus({ preventScroll:true }), 50);
+  }
+}
+function closeSection(fromHistory){
+  document.body.classList.remove("viewing");
+  if(!fromHistory) try { history.back(); } catch(e) {}
+}
+$("nav").addEventListener("click", e => { const b = e.target.closest("[data-sec]"); if(b){ touched(); showSection(b.dataset.sec); } });
+$("nav").addEventListener("focusin", e => { const b = e.target.closest("[data-sec]"); if(b && b.dataset.sec !== current && lastKey > Date.now() - 1500) showSection(b.dataset.sec, { keepScroll:true }); });
+$("tiles").addEventListener("click", e => { const b = e.target.closest("[data-sec]"); if(b) showSection(b.dataset.sec, { open:true }); });
+$("backBtn").addEventListener("click", () => closeSection());
+addEventListener("popstate", e => {
+  if(e.state && e.state.sec) showSection(e.state.sec, { open:true, fromHistory:true });
+  else if(document.body.classList.contains("viewing")) closeSection(true);
+});
+
+// TV loop: on big screens, flip quote/verse every 30s and move to the next section every 20s.
+// Any tap, click or key press pauses it for 2 minutes.
+let lastTouch = 0, lastKey = 0;
+function touched(){ lastTouch = Date.now(); }
+["pointerdown","keydown","touchstart","wheel"].forEach(ev => addEventListener(ev, e => { touched(); if(ev === "keydown") lastKey = Date.now(); }, { passive:true }));
+const autoOn = () => matchMedia("(min-width:1300px)").matches && SOLO < 0 && Date.now() - lastTouch > 120000;
+let lastSectionFlip = Date.now(), lastQuoteFlip = Date.now(), wasAuto = null;
+setInterval(() => {
+  const on = autoOn();
+  if(on !== wasAuto){ document.body.classList.toggle("auto", on); wasAuto = on;
+    if(on){ lastSectionFlip = lastQuoteFlip = Date.now(); $("nav").dataset.html = ""; renderNav(); showSlide(qSlide); } }
+  if(!on) return;
+  if(Date.now() - lastQuoteFlip >= 30000){ lastQuoteFlip = Date.now(); showSlide(qSlide ? 0 : 1); }
+  if(Date.now() - lastSectionFlip >= 20000){ lastSectionFlip = Date.now();
+    const i = SECTIONS.findIndex(x => x[0] === current); showSection(SECTIONS[(i + 1) % SECTIONS.length][0]); }
+}, 1000);
+window.__navReady = true;
+setInterval(renderNav, 4000);
+
 /* ---------- Start ---------- */
 let lastDay = ymd(new Date());
 if(CONFIG.syncUrl) CAL = store.get("fd-cal");
-renderClock(); renderDay(); loadWeather(); keepAwake(); pullCalendar(); pullState();
+renderClock(); renderDay(); showSection("school"); renderNav(); loadWeather(); keepAwake(); pullCalendar(); pullState();
 setInterval(() => {
   renderClock();
   const d = ymd(new Date());
