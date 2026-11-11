@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.app.AlertDialog
+import android.webkit.GeolocationPermissions
 import android.webkit.JsResult
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -35,6 +36,7 @@ class MainActivity : Activity() {
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.settings.mediaPlaybackRequiresUserGesture = false   // lets the daily briefing play its voice
+        web.settings.setGeolocationEnabled(true)                 // lets the dashboard's Check in share location
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
@@ -50,6 +52,14 @@ class MainActivity : Activity() {
         }
         // Show the page's "Delete this?" confirmations and notices (WebView hides them by default).
         web.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
+                if (Geofences.hasFine(this@MainActivity)) {
+                    callback.invoke(origin, true, false)
+                } else {
+                    requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), 31)
+                    callback.invoke(origin, false, false)
+                }
+            }
             override fun onJsConfirm(view: WebView, url: String, message: String, result: JsResult): Boolean {
                 AlertDialog.Builder(this@MainActivity)
                     .setMessage(message)

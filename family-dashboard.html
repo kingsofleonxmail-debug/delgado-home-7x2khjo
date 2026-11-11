@@ -170,8 +170,11 @@ body{
 .vlist button b{display:block;font-size:.9rem}.vlist button small{font-size:.7rem;color:var(--muted)}
 .vlist button.on{border-color:var(--accent);background:rgba(var(--accent-rgb),.1)}
 .vlist button.on b{color:var(--accent)}
-body:not(.solo) .dock ~ .aicap{bottom:calc(84px + env(safe-area-inset-bottom))}
+body:not(.solo) .dock ~ .aicap,body:not(.solo) .dock ~ #ciSheet{bottom:calc(84px + env(safe-area-inset-bottom))}
 .kpis{display:flex;gap:1.8rem;flex:1;justify-content:center;flex-wrap:wrap}
+[data-go]{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:border-color .15s,transform .1s}
+.kpi[data-go]:hover,.kpi[data-go]:focus-visible{border-color:rgba(var(--accent-rgb),.55);outline:none}
+[data-go]:active{transform:scale(.97)}
 .kpi .kl{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .kpi .kv{font-size:1.45rem;font-weight:800;margin-top:.15rem;display:flex;align-items:baseline;gap:.5rem;white-space:nowrap}
 .tag{font-size:.6rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:.15rem .45rem;border-radius:5px;border:1px solid;white-space:nowrap}
@@ -527,8 +530,20 @@ body.scrolled .mini{transform:none;visibility:visible}
 .mq span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mq i{font-style:normal;color:var(--accent);font-weight:800;font-size:15px}
 .dock{bottom:0;border-top:1px solid var(--line);padding:6px 6px max(8px,env(safe-area-inset-bottom))}
-.dock .in{max-width:540px;margin:0 auto;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
-.dock .in::-webkit-scrollbar{display:none}
+.dock .in{max-width:540px;margin:0 auto;display:flex;gap:2px;align-items:stretch}
+.dock .dfix{display:flex;gap:2px;flex:none;padding-right:4px;margin-right:2px;border-right:1px solid var(--line)}
+.dock .dfix button{flex:0 0 58px}
+.dock .dscroll{flex:1;min-width:0;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth;
+  -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.dock .dscroll::-webkit-scrollbar{display:none}
+.dock button.ci span{filter:none;opacity:1}
+.dock button.ci.on{color:var(--warm);background:rgba(245,158,11,.12)}
+/* Check-in sheet */
+.cwho{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin:.2rem 0 .6rem}
+.cwho button{font:inherit;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.55rem .2rem;cursor:pointer}
+.cwho button.on{color:var(--accent);border-color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+#ciSheet .rinput{width:100%}
+#ciSheet .cb button.send{flex:1}
 .dock button{flex:1 0 58px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:10px;font:inherit;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--muted);background:none;border:0;cursor:pointer}
 .dock button span{font-size:19px;line-height:1.1;filter:grayscale(.6);opacity:.8}
 .dock button.on{color:var(--accent);background:rgba(var(--accent-rgb),.1)}
@@ -589,17 +604,17 @@ body.scrolled .mini{transform:none;visibility:visible}
       <button type="button" class="ai" id="aiBtn" aria-label="Read today's briefing" title="Daily briefing"></button>
     </div>
     <div class="kpis">
-      <div class="kpi"><div class="kl">Right now</div><div class="kv"><span id="kNow">—</span><span class="tag acc" id="kCond"></span></div></div>
-      <div class="kpi"><div class="kl">Mom today</div><div class="kv"><span id="kMom">—</span><span class="tag" id="kMomTag"></span></div></div>
+      <div class="kpi" data-go="weather" role="button" tabindex="0" aria-label="Open weather"><div class="kl">Right now</div><div class="kv"><span id="kNow">—</span><span class="tag acc" id="kCond"></span></div></div>
+      <div class="kpi" data-go="mom" role="button" tabindex="0" aria-label="Open Mom's schedule"><div class="kl">Mom today</div><div class="kv"><span id="kMom">—</span><span class="tag" id="kMomTag"></span></div></div>
       <div class="kpi"><div class="kl">Bins</div><div class="kv"><span id="kBins">—</span><span class="tag" id="kBinsTag"></span></div></div>
-      <div class="kpi"><div class="kl" id="kCdLabel">Countdown</div><div class="kv"><span id="kCd">—</span><span class="tag cool" id="kCdTag"></span></div></div>
+      <div class="kpi" data-go="countdown" role="button" tabindex="0" aria-label="Open countdowns"><div class="kl" id="kCdLabel">Countdown</div><div class="kv"><span id="kCd">—</span><span class="tag cool" id="kCdTag"></span></div></div>
     </div>
     <div class="datechip"><span id="calIc"></span><div><b id="clock">—</b><span id="dateTxt"></span></div></div>
   </header>
 
   <div class="mini" id="mini" aria-hidden="true"><div class="in">
     <div class="mrow"><div class="logo" id="mLogo"></div><div class="mnm" id="mName"></div><span class="live" id="mLive"><i></i>LIVE</span><div class="mck" id="mClock"></div><button type="button" class="ai" id="aiMini" aria-label="Read today's briefing" tabindex="-1"></button></div>
-    <div class="mchips"><div><small>Now</small><b id="mNow">—</b></div><div><small>Mom</small><b id="mMom">—</b></div><div><small>Bins</small><b id="mBins">—</b></div><div><small id="mCdL">Countdown</small><b id="mCd">—</b></div></div>
+    <div class="mchips"><div data-go="weather"><small>Now</small><b id="mNow">—</b></div><div data-go="mom"><small>Mom</small><b id="mMom">—</b></div><div><small>Bins</small><b id="mBins">—</b></div><div data-go="countdown"><small id="mCdL">Countdown</small><b id="mCd">—</b></div></div>
     <button type="button" class="mq" id="mq" tabindex="-1"><span id="mqt"></span><i>›</i></button>
   </div></div>
   <nav class="dock" id="dock" aria-label="Sections"><div class="in" id="dockIn"></div></nav>
@@ -610,6 +625,14 @@ body.scrolled .mini{transform:none;visibility:visible}
     <div class="cb"><button type="button" class="pri" id="aiStop">Stop</button><button type="button" id="aiVoice">🎙 Voice</button><button type="button" id="aiClose">Close</button></div>
     <div class="cn" id="aiNote" hidden></div>
   </div>
+  <form class="aicap" id="ciSheet" hidden autocomplete="off">
+    <div class="ch"><span>📍 Check in</span></div>
+    <div class="ps" style="margin:0 0 .5rem">Sends your location to Dad. Who's checking in?</div>
+    <div class="cwho" id="ciWho"></div>
+    <input id="ciMsg" class="rinput" maxlength="120" placeholder="Message (optional) — e.g. Leaving practice now" enterkeyhint="send">
+    <div class="cb"><button type="submit" class="pri send" id="ciSend">📍 Send check-in</button><button type="button" id="ciClose">Close</button></div>
+    <div class="cn" id="ciSay" hidden></div>
+  </form>
 
   <main>
     <section class="panel quote" id="quotePanel" aria-roledescription="carousel" aria-label="Quote and verse of the day">
@@ -1824,12 +1847,19 @@ setInterval(() => {
 // Phone: dock along the bottom + slim top bar that slides in once you scroll
 function renderDock(){
   const on = document.body.classList.contains("viewing") ? current : "home";
-  const html = [["home","🏠","Home"]].concat(SECTIONS.map(([id, ic, , short]) => [id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short]))
-    .map(([id, ic, nm]) => `<button type="button" data-dock="${id}" class="${id === on ? "on" : ""}" aria-current="${id === on}"><span>${ic}</span>${esc(nm)}</button>`).join("");
-  if($("dockIn").dataset.html !== html){ $("dockIn").innerHTML = html; $("dockIn").dataset.html = html;
-    const b = $("dockIn").querySelector(".on"); if(b) b.scrollIntoView({ block:"nearest", inline:"nearest" }); }
+  const btn = ([id, ic, nm]) => `<button type="button" data-dock="${id}" class="${id === on ? "on" : ""}" aria-current="${id === on}"><span>${ic}</span>${esc(nm)}</button>`;
+  const ciOpen = !$("ciSheet").hidden;
+  const html = `<div class="dfix">${btn(["home","🏠","Home"])}<button type="button" data-dock="checkin" class="ci${ciOpen ? " on" : ""}"><span>📍</span>Check in</button></div>`
+    + `<div class="dscroll">${SECTIONS.map(([id, ic, , short]) => btn([id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short])).join("")}</div>`;
+  if($("dockIn").dataset.html !== html){
+    const keep = $("dockIn").querySelector(".dscroll"), x = keep ? keep.scrollLeft : 0;
+    $("dockIn").innerHTML = html; $("dockIn").dataset.html = html;
+    const sc = $("dockIn").querySelector(".dscroll"); sc.style.scrollBehavior = "auto"; sc.scrollLeft = x; sc.style.scrollBehavior = "";
+    const b = sc.querySelector(".on"); if(b){ const r = b.getBoundingClientRect(), rr = sc.getBoundingClientRect(); if(r.left < rr.left || r.right > rr.right - 20) sc.scrollLeft += r.left - rr.left - 8; } }
 }
 $("dockIn").addEventListener("click", e => { const b = e.target.closest("[data-dock]"); if(!b) return;
+  if(b.dataset.dock === "checkin"){ if($("ciSheet").hidden) openCheckin(); else closeCheckin(); return; }
+  closeCheckin();
   if(b.dataset.dock === "home"){ if(document.body.classList.contains("viewing")) closeSection(); else scrollTo({ top:0, behavior:"smooth" }); }
   else showSection(b.dataset.dock, { open:true });
   renderDock(); });
@@ -1977,6 +2007,47 @@ $("aiVoice").addEventListener("click", () => { aiStop(); showVoices(); });
 $("aiClose").addEventListener("click", () => { aiStop(); $("aiCap").hidden = true; });
 aiSet("idle");
 
+/* ---------- Check in from the dock (anyone: Dad, Mom, Julien, Vinny) ---------- */
+const CI_PEOPLE = ["Dad", "Mom"].concat(CONFIG.kids.map(k => typeof k === "string" ? k : k.name));
+let ciWho = store.get("fd-ci-who") || (CI_PEOPLE.includes(who) ? who : "Dad");
+function renderCiWho(){ $("ciWho").innerHTML = CI_PEOPLE.map(n => `<button type="button" data-p="${esc(n)}" class="${n === ciWho ? "on" : ""}" aria-pressed="${n === ciWho}">${esc(n)}</button>`).join(""); }
+function ciSay(m){ $("ciSay").hidden = !m; $("ciSay").textContent = m || ""; }
+function openCheckin(){ aiStop(); $("aiCap").hidden = true; renderCiWho(); ciSay(""); $("ciSheet").hidden = false; $("ciSend").disabled = false; renderDock(); touched(); }
+function closeCheckin(){ if($("ciSheet").hidden) return; $("ciSheet").hidden = true; renderDock(); }
+$("ciWho").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return; ciWho = b.dataset.p; store.set("fd-ci-who", ciWho); renderCiWho(); });
+$("ciClose").addEventListener("click", closeCheckin);
+$("ciSheet").addEventListener("submit", e => {
+  e.preventDefault();
+  if(!CONFIG.syncUrl){ ciSay("Check-in needs the family server connected."); return; }
+  if(!navigator.geolocation){ ciSay("This screen can't share location."); return; }
+  const btn = $("ciSend"); btn.disabled = true; ciSay("Getting your location…");
+  navigator.geolocation.getCurrentPosition(async pos => {
+    ciSay("Sending to Dad…");
+    const kidIx = CI_PEOPLE.indexOf(ciWho) - 2;
+    const body = { action:"checkin", lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy || 0), note: $("ciMsg").value.trim().slice(0, 120) };
+    if(kidIx >= 0) body.k = kidIx; else body.who = ciWho;
+    try{
+      const res = await api(body);
+      ciSay(res.ok ? "✓ " + (res.message || "Checked in") : (res.message || "Couldn't send — try again."));
+      if(res.ok){ $("ciMsg").value = ""; setTimeout(() => { if(/^✓/.test($("ciSay").textContent)) closeCheckin(); }, 4000); }
+    }catch(err){ ciSay("Couldn't reach the family server — try again."); }
+    btn.disabled = false;
+  }, err => {
+    btn.disabled = false;
+    ciSay(err.code === 1 ? "Location is blocked — allow location for this app or page, then try again." : "Couldn't get your location — try again near a window.");
+  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+});
+$("aiBtn").addEventListener("click", closeCheckin, true); $("aiMini").addEventListener("click", closeCheckin, true);
+
+// Tap a quick-fact box (or a chip in the slim bar) to open its section
+function goSection(id){
+  touched();
+  if(isPhone()){ showSection(id, { open:true }); return; }
+  showSection(id);
+  if(!document.documentElement.classList.contains("tv")) $("stage").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if(g) goSection(g.dataset.go); });
+document.addEventListener("keydown", e => { const g = e.target.closest && e.target.closest(".kpi[data-go]"); if(g && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); goSection(g.dataset.go); } });
 window.__navReady = true;
 setInterval(renderNav, 4000);
 
