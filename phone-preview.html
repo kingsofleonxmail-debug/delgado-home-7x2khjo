@@ -147,7 +147,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .note{font-size:11px;color:var(--dim);text-align:center;margin-top:16px}
 
 /* ---- Option picker (preview only) ---- */
-.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.opts{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px}
 .opts button{border:1px solid var(--line2);background:var(--panel);border-radius:9px;padding:7px 4px;font-size:11px;font-weight:700;color:var(--muted);line-height:1.25}
 .opts button b{display:block;font-size:13px;color:var(--text)}
 .opts button.on{border-color:var(--acc);background:rgba(var(--acc-rgb),.12);color:var(--acc)}
@@ -201,6 +201,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 <div class="wrap" id="home">
   <div class="preview">👀 Preview — sample data, nothing here is saved</div>
   <div class="opts" id="opts">
+    <button type="button" data-opt="bc"><b>B + C</b>Both</button>
     <button type="button" data-opt="a"><b>A</b>Quote locked</button>
     <button type="button" data-opt="b"><b>B</b>Shrinking top</button>
     <button type="button" data-opt="c"><b>C</b>Bottom dock</button>
@@ -406,6 +407,7 @@ tiles();
 const NOTES = {
   a: "A · The top and the quote both stay locked. The quote shrinks to 2 lines — tap it to read it all, tap › for the verse.",
   b: "B · Everything shows full size at first. Scroll down and it shrinks to a slim bar with the clock, the 4 quick facts and a one-line quote. More room for the sections.",
+  bc: "B + C · The top shrinks to a slim bar as you scroll, and the dock along the bottom jumps between sections. Try opening a section, scrolling, then tapping another icon.",
   c: "C · The top stays locked and a dock along the bottom lets you jump straight from one section to another with your thumb — no going back to the tiles first."
 };
 function dock(){
@@ -416,7 +418,7 @@ $("dockIn").addEventListener("click", e => { const b = e.target.closest("[data-d
   if(b.dataset.dock === "home"){ if(current) closePage(); } else if(current){ current = b.dataset.dock; $("pageTitle").textContent = TITLES[current]; render(current); scrollTo({top:0,behavior:"instant"}); try{history.replaceState({page:current},"");}catch(e){} dock(); }
   else openPage(b.dataset.dock); });
 function setOpt(o){
-  document.body.classList.remove("opt-a","opt-b","opt-c"); document.body.classList.add("opt-" + o);
+  document.body.classList.remove("opt-a","opt-b","opt-c"); o.split("").forEach(x => document.body.classList.add("opt-" + x));
   document.querySelectorAll("[data-opt]").forEach(b => b.classList.toggle("on", b.dataset.opt === o));
   $("optnote").textContent = NOTES[o];
   (o === "a" ? $("lock") : $("quoteHome")).appendChild($("quote"));
@@ -429,7 +431,7 @@ function onScroll(){ document.body.classList.toggle("scrolled", $("lock").getBou
 addEventListener("scroll", onScroll, { passive:true });
 const tick2 = () => { $("mclock").textContent = $("clock").textContent; }; tick2(); setInterval(tick2, 15000);
 showSlide(0);
-setOpt((new URLSearchParams(location.search).get("opt") || "a").toLowerCase().replace(/[^abc]/g,"") || "a");
+{ const q = (new URLSearchParams(location.search).get("opt") || "bc").toLowerCase(); setOpt(NOTES[q] ? q : "bc"); }
 </script>
 </body>
 </html>
