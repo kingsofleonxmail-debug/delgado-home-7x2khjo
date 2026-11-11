@@ -25,8 +25,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .preview{display:flex;align-items:center;gap:8px;font-size:11px;color:#111;background:var(--warm);font-weight:700;border-radius:8px;padding:6px 10px;margin-bottom:12px}
 
 /* ---- Top (same as the live dashboard) ---- */
-.top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;padding:10px 16px 12px;margin:0 -16px 14px;border-bottom:1px solid var(--line);
-  position:sticky;top:0;z-index:10;background:rgba(8,13,27,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.lock{position:sticky;top:0;z-index:10;margin:0 -16px 14px;padding:10px 16px 12px;border-bottom:1px solid var(--line);
+  background:rgba(8,13,27,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .logo{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--acc);flex:none;
   background:rgba(var(--acc-rgb),.12);border:1px solid rgba(var(--acc-rgb),.5);box-shadow:0 0 18px rgba(var(--acc-rgb),.25)}
@@ -144,12 +145,69 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .wx b{display:block;color:var(--text);font-size:15px;margin:3px 0 1px}
 .wx .today{border-color:rgba(var(--acc-rgb),.55);color:var(--acc)}
 .note{font-size:11px;color:var(--dim);text-align:center;margin-top:16px}
+
+/* ---- Option picker (preview only) ---- */
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.opts button{border:1px solid var(--line2);background:var(--panel);border-radius:9px;padding:7px 4px;font-size:11px;font-weight:700;color:var(--muted);line-height:1.25}
+.opts button b{display:block;font-size:13px;color:var(--text)}
+.opts button.on{border-color:var(--acc);background:rgba(var(--acc-rgb),.12);color:var(--acc)}
+.opts button.on b{color:var(--acc)}
+.optnote{font-size:11px;color:var(--muted);margin:0 2px 12px;line-height:1.4}
+
+/* A — quote locked too (compact; tap the text to read it all) */
+.opt-a .lock .quote{margin:10px 0 0;padding:10px 12px;box-shadow:none}
+.opt-a .lock .emb{width:32px;height:32px}
+.opt-a .lock .qs{gap:10px;padding-right:38px}
+.opt-a .lock .qt{font-size:13px;margin:2px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.opt-a .lock .quote.open .qt{display:block}
+.opt-a .lock .qw{display:none}
+.opt-a .lock .qarr{width:28px;height:28px;font-size:17px;right:8px}
+.opt-a .lock .qdots{display:none}
+
+/* B — full top at first, shrinks to a slim bar once you scroll */
+.opt-b .lock{position:relative;box-shadow:none;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.mini{position:fixed;left:0;right:0;top:0;z-index:15;background:rgba(8,13,27,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);box-shadow:0 10px 24px rgba(0,0,0,.4);padding:max(8px,env(safe-area-inset-top)) 16px 8px;
+  transform:translateY(-110%);transition:transform .25s ease;display:none}
+.opt-b .mini{display:block}
+.opt-b.scrolled .mini{transform:none}
+.mini .in{max-width:508px;margin:0 auto}
+.mrow{display:flex;align-items:center;gap:8px}
+.mrow .logo{width:28px;height:28px;border-radius:8px}.mrow .logo svg{width:16px;height:16px}
+.mrow .nm{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;flex:1}
+.mrow .ck{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.mchips{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:7px}
+.mchips div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 6px;text-align:center}
+.mchips small{display:block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.mchips b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mq{display:flex;align-items:center;gap:8px;width:100%;margin-top:7px;font-size:12px;color:var(--muted);text-align:left}
+.mq span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mq i{font-style:normal;color:var(--acc);font-weight:800}
+
+/* C — locked top + a dock at the bottom to jump between sections */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:15;display:none;background:rgba(8,13,27,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);padding:6px 6px max(8px,env(safe-area-inset-bottom))}
+.opt-c .dock{display:block}
+.opt-c .wrap{padding-bottom:110px}
+.dock .in{max-width:540px;margin:0 auto;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.dock .in::-webkit-scrollbar{display:none}
+.dock button{flex:1 0 58px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.dock button span{font-size:19px;line-height:1.1;filter:grayscale(.6);opacity:.8}
+.dock button.on{color:var(--acc);background:rgba(var(--acc-rgb),.1)}
+.dock button.on span{filter:none;opacity:1}
 </style>
 </head>
 <body>
 <div class="wrap" id="home">
   <div class="preview">👀 Preview — sample data, nothing here is saved</div>
+  <div class="opts" id="opts">
+    <button type="button" data-opt="a"><b>A</b>Quote locked</button>
+    <button type="button" data-opt="b"><b>B</b>Shrinking top</button>
+    <button type="button" data-opt="c"><b>C</b>Bottom dock</button>
+  </div>
+  <div class="optnote" id="optnote"></div>
 
+  <div class="lock" id="lock">
   <header class="top">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div>
@@ -164,8 +222,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
       <div class="kpi"><div class="kl">Countdown</div><div class="kv">9 days <span class="tag cool">GTA</span></div></div>
     </div>
   </header>
+  </div>
 
   <div class="home-only" id="homeOnly">
+  <div id="quoteHome">
   <section class="panel quote" id="quote" aria-roledescription="carousel">
     <div class="qslides" id="qslides">
       <div class="qs on">
@@ -180,6 +240,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
     <button class="qarr" id="qarr" aria-label="Show the Bible verse">›</button>
     <div class="qdots"><i class="on"></i><i></i></div>
   </section>
+  </div>
 
   <div class="tiles" id="tiles"></div>
   <div class="note">Tap a tile to open it · swipe the quote to see the verse</div>
@@ -190,6 +251,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
     <div id="pageBody"></div>
   </section>
 </div>
+
+<div class="mini" id="mini" aria-hidden="true"><div class="in">
+  <div class="mrow"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div><div class="nm">Delgado</div><span class="live"><i></i>LIVE</span><div class="ck" id="mclock"></div></div>
+  <div class="mchips"><div><small>Now</small><b>49° ☀</b></div><div><small>Mom</small><b>At work</b></div><div><small>Bins</small><b>Mon</b></div><div><small>GTA</small><b>9 days</b></div></div>
+  <button type="button" class="mq" id="mq"><span id="mqt"></span><i>›</i></button>
+</div></div>
+<nav class="dock" id="dock" aria-label="Sections"><div class="in" id="dockIn"></div></nav>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -278,11 +346,12 @@ function openPage(id, fromHistory){
   $("homeOnly").hidden = true; $("page").hidden = false;
   scrollTo({ top:0, behavior:"instant" });
   if(!fromHistory) try { history.pushState({ page:id }, ""); } catch(e) {}
+  dock();
   setTimeout(() => $("backBtn").focus({ preventScroll:true }), 50);
 }
 function closePage(fromHistory){
   $("page").hidden = true; $("homeOnly").hidden = false;
-  current = null; tiles();
+  current = null; tiles(); dock();
   scrollTo({ top:0, behavior:"instant" });
   if(!fromHistory) try { history.back(); } catch(e) {}
 }
@@ -315,8 +384,12 @@ function showSlide(n){
   document.querySelectorAll(".qdots i").forEach((d,i) => d.classList.toggle("on", i===n));
   $("qarr").textContent = n ? "‹" : "›";
   $("qarr").setAttribute("aria-label", n ? "Show the Napoleon quote" : "Show the Bible verse");
+  const q = document.querySelectorAll(".qs")[n];
+  $("mqt").textContent = (n ? "📖 " : "⚔ ") + "\u201C" + q.querySelector(".qt").textContent + "\u201D";
 }
-$("qarr").addEventListener("click", () => showSlide(slide ? 0 : 1));
+$("qarr").addEventListener("click", e => { e.stopPropagation(); showSlide(slide ? 0 : 1); });
+$("quote").addEventListener("click", () => { if(document.body.classList.contains("opt-a")) $("quote").classList.toggle("open"); });
+$("mq").addEventListener("click", () => showSlide(slide ? 0 : 1));
 let sx = null;
 $("quote").addEventListener("touchstart", e => { sx = e.touches[0].clientX; }, { passive:true });
 $("quote").addEventListener("touchend", e => { if(sx === null) return; const dx = e.changedTouches[0].clientX - sx; sx = null;
@@ -328,6 +401,35 @@ function tick(){ const d = new Date();
   $("date").textContent = d.toLocaleDateString([], {weekday:"long"}) + " · " + d.toLocaleDateString([], {month:"short", day:"numeric"}); }
 tick(); setInterval(tick, 15000);
 tiles();
+
+/* ---------- Option switcher (preview only) ---------- */
+const NOTES = {
+  a: "A · The top and the quote both stay locked. The quote shrinks to 2 lines — tap it to read it all, tap › for the verse.",
+  b: "B · Everything shows full size at first. Scroll down and it shrinks to a slim bar with the clock, the 4 quick facts and a one-line quote. More room for the sections.",
+  c: "C · The top stays locked and a dock along the bottom lets you jump straight from one section to another with your thumb — no going back to the tiles first."
+};
+function dock(){
+  const items = [["home","🏠","Home"],["school","🏫","School"],["calendar","📅","Calendar"],["mom","🏥","Mom"],["nap","😴","Nap"],["pets","🐾","Pets"],["shop","🛒","Shop"],["weather","🌤","Weather"],["countdown","⭐","Count"]];
+  $("dockIn").innerHTML = items.map(i => `<button type="button" data-dock="${i[0]}" class="${(current||"home")===i[0]?"on":""}"><span>${i[1]}</span>${i[2]}</button>`).join("");
+}
+$("dockIn").addEventListener("click", e => { const b = e.target.closest("[data-dock]"); if(!b) return;
+  if(b.dataset.dock === "home"){ if(current) closePage(); } else if(current){ current = b.dataset.dock; $("pageTitle").textContent = TITLES[current]; render(current); scrollTo({top:0,behavior:"instant"}); try{history.replaceState({page:current},"");}catch(e){} dock(); }
+  else openPage(b.dataset.dock); });
+function setOpt(o){
+  document.body.classList.remove("opt-a","opt-b","opt-c"); document.body.classList.add("opt-" + o);
+  document.querySelectorAll("[data-opt]").forEach(b => b.classList.toggle("on", b.dataset.opt === o));
+  $("optnote").textContent = NOTES[o];
+  (o === "a" ? $("lock") : $("quoteHome")).appendChild($("quote"));
+  $("quote").classList.remove("open");
+  try { history.replaceState(history.state, "", "?opt=" + o); } catch(e) {}
+  onScroll(); dock();
+}
+$("opts").addEventListener("click", e => { const b = e.target.closest("[data-opt]"); if(b) setOpt(b.dataset.opt); });
+function onScroll(){ document.body.classList.toggle("scrolled", $("lock").getBoundingClientRect().bottom < 130); }
+addEventListener("scroll", onScroll, { passive:true });
+const tick2 = () => { $("mclock").textContent = $("clock").textContent; }; tick2(); setInterval(tick2, 15000);
+showSlide(0);
+setOpt((new URLSearchParams(location.search).get("opt") || "a").toLowerCase().replace(/[^abc]/g,"") || "a");
 </script>
 </body>
 </html>
