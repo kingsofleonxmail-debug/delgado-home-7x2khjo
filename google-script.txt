@@ -83,6 +83,7 @@ function doPost(e) {
   if (body.action === "checkin") return handleCheckin(body);
   if (body.action === "briefing") return handleBriefing(body);
   if (body.action === "speak") return handleSpeak(body);
+  if (body.action === "game") return handleGame(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -698,5 +699,28 @@ function testBriefing() {
   if (GOOGLE_TTS_KEY) {
     try { const a = synthSpeech("Hello Delgado family. The voice is working.", DEFAULT_VOICE); Logger.log("Voice works: got " + Math.round(a.length * 0.75 / 1024) + " KB of audio."); }
     catch (err) { Logger.log("Voice problem: " + err.message); }
+  }
+}
+
+
+// ---------- Sheepdog Run: family high scores ----------
+// Keeps each person's best score. The game sends any new bests and gets the whole board back.
+const GAME_PLAYERS = ["Dad", "Mom", "Julien", "Vinny"];
+function handleGame(b) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    let board = {};
+    try { board = JSON.parse(SETTINGS.getProperty("game-board") || "{}"); } catch (e) { board = {}; }
+    let changed = false;
+    (Array.isArray(b.scores) ? b.scores : []).slice(0, 8).forEach(function (x) {
+      const who = String(x && x.who || ""), score = Math.floor(Number(x && x.score));
+      if (GAME_PLAYERS.indexOf(who) < 0 || !(score > 0) || score > 1000000) return;
+      if (!board[who] || score > board[who].score) { board[who] = { score: score, ts: Date.now() }; changed = true; }
+    });
+    if (changed) SETTINGS.setProperty("game-board", JSON.stringify(board));
+    return json({ ok: true, board: board });
+  } finally {
+    lock.releaseLock();
   }
 }

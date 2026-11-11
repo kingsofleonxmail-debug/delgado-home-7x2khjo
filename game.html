@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#070b18">
+<title>Sheepdog Run</title>
+<style>
+:root{--bg:#070b18;--panel:#0f1830;--line:#1d2a4a;--line2:#2a3a62;--text:#e8eefc;--muted:#8a97b8;--acc:#22d3ee;--acc-rgb:34,211,238;--warm:#f59e0b;--good:#34d399}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;overscroll-behavior:none}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+#bar{display:flex;align-items:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 14px 8px;font-weight:800;letter-spacing:.06em;font-size:13px}
+#bar .t{flex:1;text-transform:uppercase}
+#bar .t small{display:block;font-size:10px;letter-spacing:.16em;color:var(--muted);font-weight:700}
+#bar button{font:inherit;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:8px 11px;cursor:pointer}
+#off{display:none;margin:0 14px 8px;padding:8px 12px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fcd38d;font-size:12px;font-weight:600}
+.offline #off{display:block}
+#stage{position:relative;flex:1;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{position:absolute;inset:0;display:grid;place-items:center;padding:16px;pointer-events:none}
+.card{pointer-events:auto;width:min(440px,100%);background:rgba(8,13,27,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(var(--acc-rgb),.35);
+  border-radius:18px;padding:16px 16px 14px;box-shadow:0 20px 50px rgba(0,0,0,.5);text-align:center}
+.card[hidden]{display:none}
+.card h1{margin:0;font-size:22px;letter-spacing:.04em}
+.card h1 em{font-style:normal;color:var(--acc)}
+.card .sub{font-size:13px;color:var(--muted);margin:4px 0 12px}
+.big{font-size:40px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1}
+.newbest{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;letter-spacing:.14em;color:#111;background:var(--warm);padding:3px 8px;border-radius:99px}
+.who{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 12px}
+.who button{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 2px;cursor:pointer}
+.who button.on{color:var(--acc);border-color:var(--acc);background:rgba(var(--acc-rgb),.12)}
+.board{display:grid;gap:4px;margin:0 0 12px;text-align:left}
+.board div{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:13px}
+.board div.me{border-color:rgba(var(--acc-rgb),.6)}
+.board b{flex:1}.board span{font-variant-numeric:tabular-nums;font-weight:800}
+.board i{font-style:normal;width:1.4em;text-align:center}
+.bh{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:left;margin:0 2px 6px;display:flex}
+.bh span{flex:1}
+.go{font:inherit;width:100%;font-size:16px;font-weight:800;color:#06121f;background:var(--acc);border:0;border-radius:12px;padding:13px;cursor:pointer;box-shadow:0 0 18px rgba(var(--acc-rgb),.45)}
+.go:focus-visible,.who button:focus-visible,#bar button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.how{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+.tip{display:none;font-size:11px;color:var(--acc);margin-top:6px;font-weight:700}
+.tall .tip{display:block}
+.tall #ov{place-items:start center;padding-top:6vh}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <div class="t">🐑 Sheepdog Run<small id="barSub">Delgado family arcade</small></div>
+    <button type="button" id="mute" aria-label="Sound on">🔊</button>
+    <button type="button" id="back">‹ Dashboard</button>
+  </div>
+  <div id="off">📡 You're offline. Play while you wait; the dashboard comes back by itself when the internet does.</div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="ov">
+      <div class="card" id="startCard">
+        <h1>Sheepdog <em>Run</em></h1>
+        <div class="sub">Jump the bins, boxes and hydrants. Duck the birds!</div>
+        <div class="bh"><span>Who's playing?</span></div>
+        <div class="who" id="who"></div>
+        <div class="bh"><span>Family best</span><span id="syncTag"></span></div>
+        <div class="board" id="board"></div>
+        <button type="button" class="go" id="play">▶ Play</button>
+        <div class="how" id="how"></div>
+        <div class="tip">📱 Tip: turn your phone sideways for a wider view</div>
+      </div>
+      <div class="card" id="overCard" hidden>
+        <h1>Woof! <em>Game over</em></h1>
+        <div class="big" id="final">0</div>
+        <div id="nb"></div>
+        <div class="bh" style="margin-top:12px"><span>Family best</span><span id="syncTag2"></span></div>
+        <div class="board" id="board2"></div>
+        <button type="button" class="go" id="again">↻ Play again</button>
+        <div class="how">Tap, Space or OK to play again</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Settings shared with the dashboard ===== */
+const SYNC_URL = "https://script.google.com/macros/s/AKfycby118t5CTyEQ6ycZvP72iZ0ashKqUJBekYhaJO0GrWB-53WgSK0Gj4n6MSppyMe3fGs3Q/exec";
+const DASH = "family-dashboard.html";
+const PEOPLE = ["Dad", "Mom", "Julien", "Vinny"];
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+const params = new URLSearchParams(location.search);
+const OFFLINE_MODE = params.get("offline") === "1";
+if(OFFLINE_MODE) document.body.classList.add("offline");
+$("back").addEventListener("click", () => { location.href = DASH + location.search.replace(/[?&]offline=1/, "").replace(/^&/, "?"); });
+addEventListener("online", () => { if(OFFLINE_MODE) setTimeout(() => location.replace(DASH), 1200); });
+
+/* ===== Who's playing + leaderboard (local first, family board when online) ===== */
+let who = store.get("fd-game-who", null) || (PEOPLE.includes(store.get("fd-who", "")) ? store.get("fd-who") : "Dad");
+let local = store.get("fd-game-best", {});          // { Dad: 512, ... } best on this device
+let board = store.get("fd-game-board", {});          // last family board from the server
+let pending = store.get("fd-game-pending", {});      // scores waiting to sync
+const best = p => Math.max(local[p] || 0, (board[p] && board[p].score) || 0);
+function renderWho(){
+  $("who").innerHTML = PEOPLE.map(p => `<button type="button" data-p="${p}" class="${p === who ? "on" : ""}" aria-pressed="${p === who}">${p}</button>`).join("");
+}
+function renderBoard(){
+  const rows = PEOPLE.map(p => [p, best(p)]).sort((a,b) => b[1] - a[1]);
+  const medal = ["🥇","🥈","🥉",""];
+  const html = rows.map(([p, s], i) => `<div class="${p === who ? "me" : ""}"><i>${s ? medal[i] : ""}</i><b>${p}</b><span>${s ? s : "—"}</span></div>`).join("");
+  $("board").innerHTML = html; $("board2").innerHTML = html;
+  const tag = navigator.onLine && store.get("fd-key", "") ? "" : "on this device";
+  $("syncTag").textContent = tag; $("syncTag2").textContent = tag;
+}
+$("who").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return; who = b.dataset.p; store.set("fd-game-who", who); renderWho(); renderBoard(); });
+async function sync(){
+  const key = store.get("fd-key", "");
+  if(!key || !navigator.onLine) return;
+  try {
+    const scores = Object.entries(pending).map(([p, s]) => ({ who: p, score: s }));
+    const res = await fetch(SYNC_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, action: "game", scores }) }).then(r => r.json());
+    if(res && res.board){ board = res.board; store.set("fd-game-board", board); pending = {}; store.set("fd-game-pending", pending); renderBoard(); }
+  } catch(e){}
+}
+function recordScore(s){
+  let nb = false;
+  if(s > (local[who] || 0)){ local[who] = s; store.set("fd-game-best", local); }
+  if(s > ((board[who] && board[who].score) || 0) && s > 0){ if(s >= best(who)) nb = true; pending[who] = Math.max(pending[who] || 0, s); store.set("fd-game-pending", pending); }
+  sync(); return nb;
+}
+
+/* ===== Sound (tiny beeps, no files needed) ===== */
+let muted = store.get("fd-game-mute", false), AC = null;
+function setMute(m){ muted = m; store.set("fd-game-mute", m); $("mute").textContent = m ? "🔇" : "🔊"; $("mute").setAttribute("aria-label", m ? "Sound off" : "Sound on"); }
+setMute(muted);
+$("mute").addEventListener("click", e => { e.stopPropagation(); setMute(!muted); });
+function beep(f, d = .08, type = "square", vol = .05, slide = 0){
+  if(muted) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+    o.type = type; o.frequency.setValueAtTime(f, t); if(slide) o.frequency.exponentialRampToValueAtTime(f * slide, t + d);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d);
+  } catch(e){}
+}
+const SFX = { jump: () => beep(520, .12, "square", .045, 1.6), point: () => { beep(880, .07); setTimeout(() => beep(1320, .09), 80); },
+  crash: () => { beep(220, .25, "sawtooth", .06, .4); setTimeout(() => beep(110, .3, "square", .05, .5), 120); }, woof: () => { beep(330, .09, "sawtooth", .05, .6); setTimeout(() => beep(300, .12, "sawtooth", .05, .55), 140); } };
+
+/* ===== Game ===== */
+const cv = $("cv"), cx = cv.getContext("2d");
+const H = 240;                       // world height in game units
+let W = 400, S = 1, DPR = 1, OY = 0;  // world width (depends on screen), scale, pixel ratio, vertical offset (tall screens)
+const GROUND = 196;                  // y of the sidewalk top
+function resize(){
+  const r = $("stage").getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(r.width * DPR); cv.height = Math.round(r.height * DPR);
+  S = Math.min(r.height / H, r.width / 340) * DPR;   // always show at least 340 units of road
+  W = cv.width / S;
+  OY = (cv.height - H * S) * .62;                    // tall phone: extra sky above, road sits lower
+  document.body.classList.toggle("tall", r.height > r.width * 1.1);
+}
+addEventListener("resize", resize);
+
+const G = 2000, JUMP = -640, HOLD_G = 0.55;   // gravity, jump speed, lighter gravity while holding jump
+let state = "start", t = 0, speed, score, dist, obs, birds, clouds, nextGap, night, nightT, flash, lastPoint, shake, dog;
+function reset(){
+  speed = 270; score = 0; dist = 0; obs = []; nextGap = 380; night = 0; nightT = 0; flash = 0; lastPoint = 0; shake = 0;
+  dog = { x: 46, y: GROUND, vy: 0, duck: false, onGround: true, run: 0, holding: false };
+}
+reset();
+clouds = Array.from({length: 5}, (_, i) => ({ x: i * 140 + Math.random() * 80, y: 30 + Math.random() * 60, s: .7 + Math.random() * .6 }));
+const stars = Array.from({length: 40}, () => ({ x: Math.random(), y: Math.random() * .55, r: Math.random() * 1.2 + .3, tw: Math.random() * 6 }));
+
+// Obstacles: [kind, width, height]
+const KINDS = [
+  { k: "bin",      w: 24, h: 34 },
+  { k: "recycle",  w: 24, h: 38 },
+  { k: "box",      w: 22, h: 20 },
+  { k: "box2",     w: 22, h: 38 },
+  { k: "hydrant",  w: 16, h: 26 },
+  { k: "boxes3",   w: 50, h: 20 }
+];
+function spawn(){
+  const flyOK = score > 350;
+  if(flyOK && Math.random() < .22){
+    const lvl = [GROUND - 46, GROUND - 26, GROUND - 70][Math.floor(Math.random() * 3)];
+    obs.push({ k: "bird", x: W + 20, y: lvl, w: 30, h: 16, f: 0 });
+  } else {
+    const pool = score < 150 ? KINDS.filter(o => o.h <= 34 && o.k !== "boxes3") : KINDS;
+    const o = pool[Math.floor(Math.random() * pool.length)];
+    obs.push({ ...o, x: W + 20, y: GROUND - o.h });
+    if(score > 600 && Math.random() < .18 && o.w < 30){ const o2 = KINDS[2]; obs.push({ ...o2, x: W + 20 + o.w + 4, y: GROUND - o2.h }); }
+  }
+  nextGap = speed * (.62 + Math.random() * .75) + 150;
+}
+
+function jump(){
+  if(state !== "play") return;
+  if(dog.onGround){ dog.vy = JUMP; dog.onGround = false; dog.holding = true; dog.duck = false; SFX.jump(); }
+}
+function update(dt){
+  t += dt;
+  clouds.forEach(c => { c.x -= dt * 14 * c.s; if(c.x < -60) { c.x = W + Math.random() * 100; c.y = 30 + Math.random() * 60; } });
+  if(state !== "play") { dog.run += dt * 4; return; }
+  speed = Math.min(720, speed + dt * 7.5);
+  dist += speed * dt;
+  score = Math.floor(dist / 26);
+  if(score - lastPoint >= 100){ lastPoint = score - (score % 100); flash = 1; SFX.point(); }
+  flash = Math.max(0, flash - dt * 1.6);
+  // day / night every 700 points
+  const wantNight = Math.floor(score / 700) % 2 === 1 ? 1 : 0;
+  night += (wantNight - night) * Math.min(1, dt * 1.2);
+
+  // dog
+  const g = dog.vy < 0 && dog.holding ? G * HOLD_G : G * (dog.duck && !dog.onGround ? 2.2 : 1);
+  dog.vy += g * dt; dog.y += dog.vy * dt;
+  if(dog.y >= GROUND){ dog.y = GROUND; dog.vy = 0; dog.onGround = true; }
+  dog.run += dt * speed / 22;
+
+  // obstacles
+  nextGap -= speed * dt;
+  if(nextGap <= 0) spawn();
+  obs.forEach(o => { o.x -= speed * dt * (o.k === "bird" ? 1.12 : 1); if(o.k === "bird") o.f += dt * 10; });
+  obs = obs.filter(o => o.x + o.w > -20);
+
+  // hits (forgiving boxes)
+  const db = dogBox();
+  for(const o of obs){
+    const ox = o.x + 3, oy = o.y + 3, ow = o.w - 6, oh = o.h - 4;
+    if(db.x < ox + ow && db.x + db.w > ox && db.y < oy + oh && db.y + db.h > oy){ crash(); break; }
+  }
+}
+function dogBox(){
+  return dog.duck && dog.onGround ? { x: dog.x - 22, y: dog.y - 20, w: 46, h: 19 } : { x: dog.x - 18, y: dog.y - 34, w: 38, h: 32 };
+}
+function crash(){
+  state = "over"; shake = .35; SFX.crash();
+  const nb = recordScore(score);
+  $("final").textContent = score;
+  $("nb").innerHTML = nb ? `<span class="newbest">NEW ${who.toUpperCase()} BEST</span>` : `<span style="font-size:12px;color:var(--muted)">${who}'s best: ${best(who)}</span>`;
+  renderBoard();
+  setTimeout(() => { $("overCard").hidden = false; $("again").focus({ preventScroll: true }); }, 450);
+}
+function start(){
+  if(state === "play") return;
+  reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; SFX.woof();
+  try { AC && AC.resume && AC.resume(); } catch(e){}
+}
+
+/* ===== Drawing ===== */
+const lerp = (a, b, k) => a + (b - a) * k;
+function mix(c1, c2, k){ // hex colors
+  const p = c => [1,3,5].map(i => parseInt(c.slice(i, i + 2), 16));
+  const a = p(c1), b = p(c2);
+  return `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], k))).join(",")})`;
+}
+function draw(){
+  const k = night;
+  cx.setTransform(1, 0, 0, 1, 0, 0);
+  let sx = 0, sy = 0; if(shake > 0){ sx = (Math.random() - .5) * 6 * shake * DPR; sy = (Math.random() - .5) * 6 * shake * DPR; shake = Math.max(0, shake - 1/60); }
+  cx.setTransform(S, 0, 0, S, sx, sy + OY);
+  const top = -OY / S - 10, bot = (cv.height - OY) / S + 10;
+  // sky
+  const sky = cx.createLinearGradient(0, top, 0, GROUND);
+  sky.addColorStop(0, mix("#5fb3ec", "#04081a", k)); sky.addColorStop(1, mix("#dff1fb", "#16244a", k));
+  cx.fillStyle = sky; cx.fillRect(-10, top, W + 20, bot - top);
+  // stars + moon / sun
+  if(k > .05){
+    cx.globalAlpha = k;
+    stars.forEach(s => { cx.fillStyle = "#fff"; cx.globalAlpha = k * (.5 + .5 * Math.sin(t * 2 + s.tw)); cx.beginPath(); cx.arc(s.x * W, top + s.y / .55 * (GROUND * .55 - top), s.r, 0, 7); cx.fill(); });
+    cx.globalAlpha = k; cx.fillStyle = "#f4f1de"; cx.beginPath(); cx.arc(W * .82, 42, 14, 0, 7); cx.fill();
+    cx.fillStyle = mix("#7cc4f2", "#060b1d", k); cx.beginPath(); cx.arc(W * .82 + 6, 38, 12, 0, 7); cx.fill();
+    cx.globalAlpha = 1;
+  }
+  if(k < .95){ cx.globalAlpha = 1 - k; cx.fillStyle = "#ffd96b"; cx.beginPath(); cx.arc(W * .82, 44, 15, 0, 7); cx.fill();
+    cx.fillStyle = "rgba(255,217,107,.25)"; cx.beginPath(); cx.arc(W * .82, 44, 24, 0, 7); cx.fill(); cx.globalAlpha = 1; }
+  // clouds
+  cx.fillStyle = k > .5 ? `rgba(160,175,210,${.25})` : "rgba(255,255,255,.85)";
+  clouds.forEach(c => { const x = c.x, y = c.y, s = c.s; cx.beginPath(); cx.arc(x, y, 9 * s, 0, 7); cx.arc(x + 11 * s, y - 5 * s, 11 * s, 0, 7); cx.arc(x + 24 * s, y, 9 * s, 0, 7); cx.rect(x, y, 24 * s, 8 * s); cx.fill(); });
+  // far houses (parallax)
+  const off1 = (dist * .18) % 180;
+  cx.fillStyle = mix("#a9c7d9", "#1c2a52", k);
+  for(let i = -1; i < W / 180 + 2; i++){ const x = i * 180 - off1; house(x + 10, GROUND - 52, 46, 36); house(x + 80, GROUND - 46, 38, 30); tree(x + 140, GROUND - 22, 14); }
+  // windows at night
+  if(k > .3){ cx.fillStyle = `rgba(255,214,120,${(k - .3) * 1.2})`;
+    for(let i = -1; i < W / 180 + 2; i++){ const x = i * 180 - off1; cx.fillRect(x + 20, GROUND - 42, 6, 6); cx.fillRect(x + 40, GROUND - 42, 6, 6); cx.fillRect(x + 92, GROUND - 36, 6, 6); } }
+  // grass + sidewalk
+  cx.fillStyle = mix("#6fbf5a", "#1e3a2a", k); cx.fillRect(-10, GROUND - 6, W + 20, 8);
+  cx.fillStyle = mix("#c9ced6", "#39425c", k); cx.fillRect(-10, GROUND, W + 20, H - GROUND + 10);
+  cx.fillStyle = mix("#aab1bd", "#2c3450", k); cx.fillRect(-10, GROUND + 14, W + 20, 3);
+  const off2 = dist % 60; cx.fillStyle = mix("#b3b9c4", "#313a55", k);
+  for(let x = -off2; x < W + 60; x += 60) cx.fillRect(x, GROUND + 1, 2, 13);
+  cx.fillStyle = mix("#8a919e", "#252c44", k); cx.fillRect(-10, GROUND + 17, W + 20, bot - GROUND);
+  // obstacles
+  obs.forEach(o => drawObstacle(o, k));
+  // dog
+  drawDog(dog, k);
+  // HUD
+  cx.font = "800 12px Inter,system-ui,sans-serif"; cx.textAlign = "right"; cx.textBaseline = "top";
+  const col = k > .5 ? "#e8eefc" : "#253049";
+  cx.fillStyle = flash > 0 && Math.floor(flash * 8) % 2 ? "transparent" : col;
+  const hy = top + 22;   // the top of the screen (tall phones have extra sky above the road)
+  cx.fillText(String(score).padStart(5, "0"), W - 10, hy);
+  cx.globalAlpha = .6; cx.fillStyle = col; cx.fillText(`HI ${String(best(who)).padStart(5, "0")}  ·  ${who}`, W - 62, hy); cx.globalAlpha = 1;
+}
+function house(x, y, w, h){ cx.fillRect(x, y, w, h); cx.beginPath(); cx.moveTo(x - 4, y); cx.lineTo(x + w / 2, y - h * .55); cx.lineTo(x + w + 4, y); cx.fill(); }
+function tree(x, y, r){ cx.fillRect(x - 1.5, y, 3, 18); cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
+function rr(x, y, w, h, r){ cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+function drawObstacle(o, k){
+  const dim = c => mix(c, "#1a2240", k * .55);
+  const { x, y, w, h } = o;
+  if(o.k === "bin" || o.k === "recycle"){
+    const body = o.k === "bin" ? "#2f7d4a" : "#2563eb", lid = o.k === "bin" ? "#25633b" : "#1d4fbf";
+    cx.fillStyle = dim(body); cx.beginPath(); cx.moveTo(x + 2, y + 6); cx.lineTo(x + w - 2, y + 6); cx.lineTo(x + w - 4, y + h - 3); cx.lineTo(x + 4, y + h - 3); cx.fill();
+    cx.fillStyle = dim(lid); rr(x, y + 1, w, 6, 2); cx.fill(); cx.fillRect(x + w / 2 - 4, y - 1, 8, 3);
+    cx.fillStyle = dim("#ffffff"); cx.globalAlpha = .25; cx.fillRect(x + 6, y + 10, 2, h - 16); cx.fillRect(x + 12, y + 10, 2, h - 16); cx.globalAlpha = 1;
+    if(o.k === "recycle"){ cx.fillStyle = "#fff"; cx.font = "bold 10px sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle"; cx.fillText("♻", x + w / 2, y + h / 2 + 2); }
+    cx.fillStyle = "#111"; cx.beginPath(); cx.arc(x + 6, y + h - 2, 2.6, 0, 7); cx.arc(x + w - 6, y + h - 2, 2.6, 0, 7); cx.fill();
+  } else if(o.k.startsWith("box")){
+    const n = o.k === "boxes3" ? 3 : 1, rows = o.k === "box2" ? 2 : 1, bw = n === 3 ? 16 : w, bh = rows === 2 ? h / 2 : h;
+    for(let i = 0; i < n; i++) for(let j = 0; j < rows; j++){
+      const bx = x + i * (bw + 1), by = y + j * bh, hh = n === 3 && i === 1 ? bh : bh;
+      cx.fillStyle = dim("#c08a4f"); cx.fillRect(bx, by, bw, hh);
+      cx.fillStyle = dim("#a87442"); cx.fillRect(bx, by, bw, 3); cx.fillRect(bx + bw / 2 - 1.5, by, 3, hh);
+      cx.strokeStyle = dim("#8a5d33"); cx.lineWidth = .8; cx.strokeRect(bx + .4, by + .4, bw - .8, hh - .8);
+    }
+  } else if(o.k === "hydrant"){
+    cx.fillStyle = dim("#dc2626"); rr(x + 3, y + 6, w - 6, h - 9, 3); cx.fill();
+    cx.beginPath(); cx.arc(x + w / 2, y + 7, (w - 6) / 2, Math.PI, 0); cx.fill();
+    cx.fillRect(x, y + 11, w, 5); cx.fillRect(x + 1, y + h - 4, w - 2, 4);
+    cx.fillStyle = dim("#fca5a5"); cx.fillRect(x + w / 2 - 1, y + 1, 2, 3);
+  } else if(o.k === "bird"){
+    const up = Math.sin(o.f) > 0;
+    cx.fillStyle = k > .5 ? "#cbd5e1" : "#334155";
+    cx.beginPath(); cx.ellipse(x + 15, y + 9, 10, 5, 0, 0, 7); cx.fill();
+    cx.beginPath(); cx.arc(x + 5, y + 7, 4, 0, 7); cx.fill();
+    cx.fillStyle = "#f59e0b"; cx.beginPath(); cx.moveTo(x + 1, y + 7); cx.lineTo(x - 4, y + 8); cx.lineTo(x + 1, y + 9); cx.fill();
+    cx.fillStyle = k > .5 ? "#94a3b8" : "#1e293b";
+    cx.beginPath(); cx.moveTo(x + 10, y + 7); cx.lineTo(x + 18, up ? y - 6 : y + 20); cx.lineTo(x + 22, y + 7); cx.fill();
+  }
+}
+/* Old English Sheepdog: grey back and rear, white head, chest and legs, shaggy fringe over the eyes, black nose */
+function fluff(x, y, r, col){ cx.fillStyle = col; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
+function drawDog(d, k){
+  const W1 = mix("#f5f5f2", "#c9cfdc", k * .6), W2 = mix("#e3e3de", "#aeb6c8", k * .6), G1 = mix("#8a919c", "#5b6478", k * .5), G2 = mix("#6f7682", "#495267", k * .5);
+  const ducking = d.duck && d.onGround;
+  const x = d.x, base = d.y;
+  const ph = d.onGround ? d.run : 0.6;
+  const bob = d.onGround ? Math.abs(Math.sin(ph)) * 1.6 : 0;
+  // shadow
+  cx.fillStyle = "rgba(0,0,0,.18)"; cx.beginPath(); cx.ellipse(x, GROUND + 2, ducking ? 24 : 20 - Math.min(10, (GROUND - base) / 8), 3, 0, 0, 7); cx.fill();
+  cx.save(); cx.translate(x, base - bob);
+  if(ducking){ cx.scale(1.18, .66); }
+  // legs (behind)
+  const leg = (lx, a, col) => { const sw = d.onGround ? Math.sin(ph + a) * 5 : (a ? -3 : 4);
+    cx.fillStyle = col; rr(lx + sw - 3, -12, 7, 12, 3); cx.fill(); cx.fillStyle = W1; cx.beginPath(); cx.ellipse(lx + sw + .5, -1, 4.5, 2.2, 0, 0, 7); cx.fill(); };
+  leg(-12, Math.PI, G2); leg(8, 0, W2);
+  // body: grey rear, white front
+  fluff(-14, -20, 11, G1); fluff(-6, -24, 11, G1); fluff(-18, -14, 8, G2); fluff(-9, -15, 9, G1);
+  fluff(4, -22, 11, W2); fluff(10, -18, 9, W1); fluff(2, -15, 9, W1);
+  // shaggy body texture
+  cx.strokeStyle = "rgba(0,0,0,.12)"; cx.lineWidth = 1;
+  for(let i = 0; i < 5; i++){ cx.beginPath(); cx.moveTo(-20 + i * 5, -28 + (i % 2) * 2); cx.lineTo(-22 + i * 5, -22 + (i % 2) * 2); cx.stroke(); }
+  // bobtail
+  fluff(-24, -24, 4, G2);
+  // legs (front)
+  leg(-6, Math.PI * .5, G1); leg(13, Math.PI * 1.5, W1);
+  // head
+  const hx = 18, hy = -30 + (d.onGround ? Math.sin(ph * 2) * .6 : -1);
+  fluff(hx - 4, hy + 6, 9, W2); fluff(hx, hy, 11, W1); fluff(hx + 7, hy + 5, 7, W1);
+  // ear
+  fluff(hx - 7, hy + 1, 5, G1);
+  // shaggy fringe over the eyes
+  cx.fillStyle = W2;
+  for(let i = 0; i < 6; i++){ cx.beginPath(); cx.moveTo(hx - 6 + i * 3.4, hy - 6); cx.lineTo(hx - 4 + i * 3.4, hy + 3 + (i % 2) * 2); cx.lineTo(hx - 2 + i * 3.4, hy - 6); cx.fill(); }
+  // a peek of an eye
+  cx.fillStyle = "#1f2937"; cx.beginPath(); cx.arc(hx + 5, hy + 3.6, 1.1, 0, 7); cx.fill();
+  // muzzle + nose
+  fluff(hx + 11, hy + 7, 4.5, W1);
+  cx.fillStyle = "#111827"; cx.beginPath(); cx.ellipse(hx + 15, hy + 5.5, 2.6, 2.1, 0, 0, 7); cx.fill();
+  // tongue while running
+  if(d.onGround && state === "play"){ cx.fillStyle = "#f472b6"; rr(hx + 9, hy + 10, 3.5, 4 + Math.abs(Math.sin(ph)) * 2, 1.5); cx.fill(); }
+  cx.restore();
+  if(state === "over"){ cx.fillStyle = k > .5 ? "#fde68a" : "#f59e0b"; cx.font = "bold 12px sans-serif"; cx.textAlign = "center"; cx.fillText("✶", x + 22, base - 50 + Math.sin(t * 8) * 2); }
+}
+
+/* ===== Loop + controls ===== */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+function down(e){
+  if(state === "play") jump(); else if(state === "start" && e && e.target && e.target.closest(".card")) return; else if(state === "over" && !$("overCard").hidden && !(e && e.target && e.target.closest(".card"))) start();
+}
+$("stage").addEventListener("pointerdown", e => {
+  if(e.target.closest(".card")) return;
+  e.preventDefault();
+  if(state === "play"){ const r = $("stage").getBoundingClientRect(); if(e.clientY > r.top + r.height * .8) { dog.duck = true; } else jump(); }
+  else if(state === "over" && !$("overCard").hidden) start();
+});
+addEventListener("pointerup", () => { dog.holding = false; dog.duck = false; });
+// swipe down to duck
+let ty = null;
+$("stage").addEventListener("touchstart", e => { ty = e.touches[0].clientY; }, { passive: true });
+$("stage").addEventListener("touchmove", e => { if(ty !== null && e.touches[0].clientY - ty > 24 && state === "play"){ dog.duck = true; dog.holding = false; } }, { passive: true });
+$("stage").addEventListener("touchend", () => { ty = null; dog.duck = false; }, { passive: true });
+addEventListener("keydown", e => {
+  const k = e.key;
+  if(k === " " || k === "ArrowUp" || k === "Enter" || k === "w" || k === "W"){
+    if(document.activeElement && document.activeElement.matches("#who button, #mute, #back") && state !== "play") return;
+    e.preventDefault();
+    if(state === "play") jump(); else start();
+  } else if(k === "ArrowDown" || k === "s" || k === "S"){ e.preventDefault(); dog.duck = true; dog.holding = false; }
+});
+addEventListener("keyup", e => {
+  if(e.key === " " || e.key === "ArrowUp" || e.key === "Enter" || e.key === "w" || e.key === "W") dog.holding = false;
+  if(e.key === "ArrowDown" || e.key === "s" || e.key === "S") dog.duck = false;
+});
+$("play").addEventListener("click", start);
+$("again").addEventListener("click", start);
+addEventListener("blur", () => { dog.holding = false; dog.duck = false; });
+
+const touch = matchMedia("(hover:none)").matches;
+$("how").innerHTML = touch ? "Tap to jump (hold for higher) · swipe down or tap the bottom of the screen to duck"
+  : "Space / ↑ / OK to jump (hold for higher) · ↓ to duck";
+renderWho(); renderBoard(); resize(); sync();
+requestAnimationFrame(frame);
+setTimeout(() => $("play").focus({ preventScroll: true }), 100);
+</script>
+</body>
+</html>
