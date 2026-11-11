@@ -9,7 +9,9 @@ import android.os.Bundle
 import android.view.Gravity
 import android.app.AlertDialog
 import android.webkit.GeolocationPermissions
+import android.webkit.JavascriptInterface
 import android.webkit.JsResult
+import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -99,6 +101,16 @@ class MainActivity : Activity() {
         root.addView(gear, FrameLayout.LayoutParams(size, size, Gravity.BOTTOM or Gravity.END).apply {
             setMargins(margin, margin, margin, margin)
         })
+        // On phones the dashboard puts Settings in its bottom dock, so the floating gear hides there.
+        // It stays on bigger screens (no dock) and if the page can't load.
+        web.addJavascriptInterface(object {
+            @JavascriptInterface fun openSettings() {
+                runOnUiThread { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+            }
+            @JavascriptInterface fun setDock(showing: Boolean) {
+                runOnUiThread { gear.visibility = if (showing) View.GONE else View.VISIBLE }
+            }
+        }, "DelgadoApp")
         setContentView(root)
 
         val shared = sharedRecipeUrl(intent)

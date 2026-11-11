@@ -537,6 +537,9 @@ body.scrolled .mini{transform:none;visibility:visible}
   -webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
 .dock .dscroll::-webkit-scrollbar{display:none}
 .dock button.ci span{filter:none;opacity:1}
+.dock .dright{border-right:0;border-left:1px solid var(--line);padding:0 0 0 4px;margin:0 0 0 2px}
+.dock .gear{display:block;width:21px;height:21px;margin:1px 0;color:var(--accent);filter:drop-shadow(0 0 4px rgba(var(--accent-rgb),.5))}
+.dock .gear svg{width:100%;height:100%}
 .dock button.ci.on{color:var(--warm);background:rgba(245,158,11,.12)}
 /* Check-in sheet */
 .cwho{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin:.2rem 0 .6rem}
@@ -779,7 +782,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.16</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.17</span></footer>
 </div>
 
 <script>
@@ -1846,12 +1849,17 @@ setInterval(() => {
     const i = SECTIONS.findIndex(x => x[0] === current); showSection(SECTIONS[(i + 1) % SECTIONS.length][0]); }
 }, 1000);
 // Phone: dock along the bottom + slim top bar that slides in once you scroll
+// Android app only: its Settings live in the dock (the app hides its floating gear while the dock shows)
+const GEAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+function tellAppDock(){ try { if(window.DelgadoApp && window.DelgadoApp.setDock) window.DelgadoApp.setDock(isPhone() && SOLO < 0); } catch(_){} }
+addEventListener("resize", tellAppDock);
 function renderDock(){
   const on = document.body.classList.contains("viewing") ? current : "home";
   const btn = ([id, ic, nm]) => `<button type="button" data-dock="${id}" class="${id === on ? "on" : ""}" aria-current="${id === on}"><span>${ic}</span>${esc(nm)}</button>`;
   const ciOpen = !$("ciSheet").hidden;
   const html = `<div class="dfix">${btn(["home","🏠","Home"])}<button type="button" data-dock="checkin" class="ci${ciOpen ? " on" : ""}"><span>📍</span>Check in</button></div>`
-    + `<div class="dscroll">${SECTIONS.map(([id, ic, , short]) => btn([id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short])).join("")}</div>`;
+    + `<div class="dscroll">${SECTIONS.map(([id, ic, , short]) => btn([id, ic, short === "Sebastian" ? "Nap" : short === "Countdown" ? "Count" : short === "Shopping" ? "Shop" : short])).join("")}</div>`
+    + (window.DelgadoApp ? `<div class="dfix dright"><button type="button" data-dock="app" aria-label="App settings"><i class="gear">${GEAR_SVG}</i>App</button></div>` : "");
   if($("dockIn").dataset.html !== html){
     const keep = $("dockIn").querySelector(".dscroll"), x = keep ? keep.scrollLeft : 0;
     $("dockIn").innerHTML = html; $("dockIn").dataset.html = html;
@@ -1859,6 +1867,7 @@ function renderDock(){
     const b = sc.querySelector(".on"); if(b){ const r = b.getBoundingClientRect(), rr = sc.getBoundingClientRect(); if(r.left < rr.left || r.right > rr.right - 20) sc.scrollLeft += r.left - rr.left - 8; } }
 }
 $("dockIn").addEventListener("click", e => { const b = e.target.closest("[data-dock]"); if(!b) return;
+  if(b.dataset.dock === "app"){ try { window.DelgadoApp.openSettings(); } catch(_){} return; }
   if(b.dataset.dock === "checkin"){ if($("ciSheet").hidden) openCheckin(); else closeCheckin(); return; }
   closeCheckin();
   if(b.dataset.dock === "home"){ if(document.body.classList.contains("viewing")) closeSection(); else scrollTo({ top:0, behavior:"smooth" }); }
@@ -2055,7 +2064,7 @@ setInterval(renderNav, 4000);
 /* ---------- Start ---------- */
 let lastDay = ymd(new Date());
 if(CONFIG.syncUrl) CAL = store.get("fd-cal");
-renderClock(); renderDay(); showSection("school"); renderNav(); renderDock(); renderMini(); loadWeather(); keepAwake(); pullCalendar(); pullState();
+renderClock(); renderDay(); showSection("school"); renderNav(); renderDock(); renderMini(); tellAppDock(); loadWeather(); keepAwake(); pullCalendar(); pullState();
 setInterval(() => {
   renderClock();
   const d = ymd(new Date());
