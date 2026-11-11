@@ -654,7 +654,8 @@ function writeBriefing(facts) {
     "Rules:\n" +
     "- Cover the numbered items in exactly that order, one or two sentences each, and nothing else. Never mention the boys, school, naps or pets.\n" +
     "- Keep the same meaning and wording style, e.g. \"Mom is off today.\" or \"Mom has work today from 3 to 11:30 at Wilkes-Barre.\" and \"On the calendar today: ...\".\n" +
-    "- Warm and natural, under 110 words. Plain sentences only: no lists, numbers in front, headings, emojis, symbols or markdown.\n" +
+    "- If there is a quote, end with it, read word for word.\n" +
+    "- Warm and natural, under 140 words. Plain sentences only: no lists, numbers in front, headings, emojis, symbols or markdown.\n" +
     "- Don't invent anything. Say degrees as \"degrees\".\n\nFacts:\n" + facts;
   const res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
     method: "post", contentType: "application/json", muteHttpExceptions: true,

@@ -740,7 +740,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.14</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.15</span></footer>
 </div>
 
 <script>
@@ -1892,20 +1892,23 @@ function briefParts(){
   const bins = nextBins(now)[0];
   if(bins && bins.d <= 1){ const it = bins.items.replace(/\s*\+\s*/g, " and "); const pl = / and /.test(it); P.bins = bins.d === 0 ? `${it} ${pl ? "get" : "gets"} picked up this morning.` : `${it} ${pl ? "go" : "goes"} out tonight.`; }
   const left = SHOP.filter(i => !i.done);
-  P.shop = left.length ? `There ${left.length === 1 ? "is 1 thing" : `are ${left.length} things`} on the shopping list.` : "The shopping list is empty.";
+  if(left.length) P.shop = `There ${left.length === 1 ? "is 1 thing" : `are ${left.length} things`} on the shopping list.`;
   const n = txt("#kCd"), t = txt("#kCdTag"); if(t && n && n !== "—") P.cd = /today/i.test(n) ? `Today is ${t}!` : `And ${n} until ${t}.`;
+  const q = txt("#qText").replace(/^[\u201C"]+|[\u201D"]+$/g, "").trim();
+  if(q) P.quote = `Here's today's Napoleon quote: \u201C${q}\u201D`;
   return P;
 }
 function briefingFacts(){
   const P = briefParts(), now = new Date();
   return [`Time: ${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}.`,
     `1. Greeting: ${P.greet}`, `2. Weather: ${P.weather || "unknown"}`, `3. Mom: ${P.mom}`, `4. Calendar: ${P.cal}`,
-    P.bins ? `5. Bins: ${P.bins}` : "", `6. Shopping: ${P.shop}`, P.cd ? `7. Countdown: ${P.cd}` : "",
-    "Say these in exactly this order. Do NOT mention the boys, school, naps or pets."].filter(Boolean).join("\n");
+    P.bins ? `5. Bins: ${P.bins}` : "", P.shop ? `6. Shopping: ${P.shop}` : "", P.cd ? `7. Countdown: ${P.cd}` : "",
+    P.quote ? `8. Quote (always last, read the quote word for word): ${P.quote}` : "",
+    "Say these in exactly this order. Do NOT mention the boys, school, naps or pets, or anything not listed."].filter(Boolean).join("\n");
 }
 function briefingFallback(){
   const P = briefParts();
-  return [P.greet, P.weather, P.mom, P.cal, P.bins, P.shop, P.cd].filter(Boolean).join(" ");
+  return [P.greet, P.weather, P.mom, P.cal, P.bins, P.shop, P.cd, P.quote].filter(Boolean).join(" ");
 }
 function deviceSpeak(text, run){
   if(!("speechSynthesis" in window)) return false;
