@@ -686,7 +686,7 @@ body.scrolled .mini{transform:none;visibility:visible}
       <div class="momstat" id="momStat"></div>
       <div class="momgrid">
         <div class="subp">
-          <div class="sh"><span>Add a shift</span><span class="seg seg-sm" data-whoseg></span></div>
+          <div class="sh"><span>Add a shift</span></div>
           <form class="shiftform" id="shiftForm" autocomplete="off">
             <label>Date<input type="date" id="shDate" required></label>
             <label>Shift<select id="shShift"></select></label>
@@ -735,6 +735,7 @@ body.scrolled .mini{transform:none;visibility:visible}
       <div class="view" data-view="shop">
     <section class="panel" id="shopPanel">
       <div class="ph"><div><div class="pt">Shopping list</div><div class="ps">Shared — add from any phone</div></div><span class="tag acc" id="shopCount"></span></div>
+      <div class="whorow">Adding as <div class="seg" data-whoseg></div></div>
       <form class="addrow" id="shopForm" autocomplete="off">
         <input id="shopIn" maxlength="80" placeholder="Add an item… (milk, dog food)" aria-label="Add an item">
         <button class="btn primary" type="submit">Add</button>
@@ -763,7 +764,7 @@ body.scrolled .mini{transform:none;visibility:visible}
       <div class="ph"><div><div class="pt">Countdowns</div><div class="ps">Set by Dad &amp; Mom — the nearest shows at the top</div></div></div>
       <div id="cdList"></div>
       <div class="subp" style="margin-top:.9rem">
-        <div class="sh"><span>Add a countdown</span><span class="seg seg-sm" data-whoseg></span></div>
+        <div class="sh"><span>Add a countdown</span></div>
         <form class="shiftform cdform" id="cdForm" autocomplete="off">
           <label>What are we counting to?<input id="cdName" maxlength="40" placeholder="Disney trip, Julien's birthday…" required></label>
           <label>Date<input type="date" id="cdDate" required></label>
@@ -1277,7 +1278,7 @@ $("napForm").addEventListener("submit", e => {
 });
 
 /* ---------- Mom's schedule ---------- */
-const canEditShifts = () => CONFIG.mom.editors.includes(who);
+const canEditShifts = () => SOLO < 0;   // anyone on the main dashboard (the boys' own pages don't show it)
 const locClass = l => l === CONFIG.mom.locations[0] ? "loc-wb" : "loc-k";
 function fmtDay(key){
   const d = parseYmd(key), t = dayDiff(new Date(), d);
@@ -1316,7 +1317,7 @@ function renderMom(){ navSoon();
 
   // Form: only Dad or Mom can add
   $("shiftForm").hidden = !edit;
-  $("shNote").textContent = edit ? `Adding as ${who}.` : `Pick Dad or Mom above to add or delete shifts.`;
+  $("shNote").textContent = "";
   $("shDate").min = todayKey; $("shDate").max = ymd(end);
   if(!$("shDate").value) $("shDate").value = todayKey;
 }
