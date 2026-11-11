@@ -650,14 +650,12 @@ function handleSpeak(b) {
 function writeBriefing(facts) {
   const prompt =
     "You are the friendly voice of the Delgado family's home dashboard in Pittston, PA. " +
-    "Write what you will SAY OUT LOUD as a quick daily briefing, using only the facts below.\n" +
+    "Turn the numbered facts below into what you will SAY OUT LOUD as a short daily briefing.\n" +
     "Rules:\n" +
-    "- 70 to 130 words. Warm, upbeat, natural, like a helpful family assistant. Plain sentences only: no lists, headings, emojis, symbols or markdown.\n" +
-    "- Open with a greeting that fits the time of day, then the weather (now, today's high and low, anything notable like rain, snow or cold).\n" +
-    "- Then only what matters right now: where the boys are with school, Mom's work, today's and tomorrow's plans, bins if they go out today or tonight, Sebastian's nap, pets that still need doing, the shopping list, and the nearest countdown.\n" +
-    "- Skip anything with nothing useful to say. Don't invent anything. Don't mention data sources or the dashboard.\n" +
-    "- Say times the way people talk (\"five thirty\" style is fine as 5:30). Say degrees as \"degrees\".\n" +
-    "- End with one short friendly line.\n\nFacts:\n" + facts;
+    "- Cover the numbered items in exactly that order, one or two sentences each, and nothing else. Never mention the boys, school, naps or pets.\n" +
+    "- Keep the same meaning and wording style, e.g. \"Mom is off today.\" or \"Mom has work today from 3 to 11:30 at Wilkes-Barre.\" and \"On the calendar today: ...\".\n" +
+    "- Warm and natural, under 110 words. Plain sentences only: no lists, numbers in front, headings, emojis, symbols or markdown.\n" +
+    "- Don't invent anything. Say degrees as \"degrees\".\n\nFacts:\n" + facts;
   const res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
     method: "post", contentType: "application/json", muteHttpExceptions: true,
     headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },

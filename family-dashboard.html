@@ -740,7 +740,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.13</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.14</span></footer>
 </div>
 
 <script>
@@ -1871,42 +1871,41 @@ function aiSet(st){ aiState = st; ["aiBtn","aiMini"].forEach(id => { $(id).class
 function aiStop(){ aiRun++; try { aiAudio.pause(); } catch(e){} try { speechSynthesis.cancel(); } catch(e){} aiSet("idle"); }
 function aiCaption(head, text, note){ $("aiCap").hidden = false; $("vList").hidden = true; $("aiHead").textContent = head; $("aiText").textContent = text;
   $("aiNote").hidden = !note; $("aiNote").textContent = note || ""; }
+// Spoken briefing, in this order: weather, Mom's work today, today's calendar, bins (only if today/tonight), shopping, countdown.
+const sayHm = hm => { let [h,m] = hm.split(":").map(Number); h = h % 12 || 12; return m ? `${h}:${pad(m)}` : `${h}`; };
+const sayTime = hm => { const [h] = hm.split(":").map(Number); return `${sayHm(hm)} ${h < 12 ? "AM" : "PM"}`; };
+function briefParts(){
+  const now = new Date(), h = now.getHours(), P = {};
+  P.greet = `${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${CONFIG.familyName.replace(/ Family$/, " family")}.`;
+  if(WX){ const t = wxDay(now);
+    P.weather = `It's ${Math.round(WX.current.temperature_2m)} degrees and ${wxKind(WX.current.weather_code, WX.current.is_day)[1].toLowerCase()}${t ? `, with a high of ${Math.round(t.hi)} and a low of ${Math.round(t.lo)}` : ""}.`;
+    if(t && t.rain >= 50) P.weather += ` There's a ${t.rain}% chance of rain or snow.`; }
+  const sh = (SHIFTS || []).filter(x => x.date === ymd(now)).sort((a,b) => a.start.localeCompare(b.start));
+  P.mom = sh.length ? `${CONFIG.mom.name} has work today from ${sayHm(sh[0].start)} to ${sayHm(sh[0].end)} at ${sh[0].loc}.` : `${CONFIG.mom.name} is off today.`;
+  const ev = eventsOn(now).filter(e => !/ works · /.test(e.title));
+  const evTxt = e => e.title.trim() + (e.allDay || !e.time ? "" : ` at ${sayTime(e.time)}`);
+  if(ev.length) P.cal = `On the calendar today: ${ev.map(evTxt).join(", and ")}.`;
+  else {
+    let nx = null; for(let i = 1; i < 8 && !nx; i++){ const d = new Date(now); d.setDate(now.getDate() + i); const e = eventsOn(d).filter(x => !/ works · /.test(x.title)); if(e.length) nx = { d, e: e[0], i }; }
+    P.cal = "Nothing on the calendar today." + (nx ? ` Next up: ${evTxt(nx.e)} ${nx.i === 1 ? "tomorrow" : "on " + DAYS_LONG[nx.d.getDay()]}.` : "");
+  }
+  const bins = nextBins(now)[0];
+  if(bins && bins.d <= 1){ const it = bins.items.replace(/\s*\+\s*/g, " and "); const pl = / and /.test(it); P.bins = bins.d === 0 ? `${it} ${pl ? "get" : "gets"} picked up this morning.` : `${it} ${pl ? "go" : "goes"} out tonight.`; }
+  const left = SHOP.filter(i => !i.done);
+  P.shop = left.length ? `There ${left.length === 1 ? "is 1 thing" : `are ${left.length} things`} on the shopping list.` : "The shopping list is empty.";
+  const n = txt("#kCd"), t = txt("#kCdTag"); if(t && n && n !== "—") P.cd = /today/i.test(n) ? `Today is ${t}!` : `And ${n} until ${t}.`;
+  return P;
+}
 function briefingFacts(){
-  const now = new Date(), L = [];
-  L.push(`Time: ${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}.`);
-  if(WX){
-    const t = wxDay(now), tm = new Date(now); tm.setDate(now.getDate() + 1); const w2 = wxDay(tm);
-    L.push(`Weather now in ${CONFIG.location.name}: ${Math.round(WX.current.temperature_2m)} degrees, ${wxKind(WX.current.weather_code, WX.current.is_day)[1]}.`);
-    if(t) L.push(`Today: high ${Math.round(t.hi)}, low ${Math.round(t.lo)}, ${t.rain}% chance of rain or snow, ${wxKind(t.code)[1]}.`);
-    if(w2) L.push(`Tomorrow (${DAYS_LONG[tm.getDay()]}): ${wxKind(w2.code)[1]}, high ${Math.round(w2.hi)}, low ${Math.round(w2.lo)}, ${w2.rain}% chance of rain or snow.`);
-    const rem = weatherReminders().map(r => r[1]); if(rem.length) L.push(`Weather reminders: ${rem.join(", ")}.`);
-  }
-  const wd = now.getDay() > 0 && now.getDay() < 6;
-  L.push(`School (${wd ? "school day" : "no school, weekend"}): ${summary("school").line}.`);
-  L.push(`Mom: ${summary("mom").line}.`);
-  const nextShifts = (SHIFTS || []).filter(x => x.date > ymd(now)).sort((a,b) => a.date.localeCompare(b.date)).slice(0, 2)
-    .map(x => { const d = parseYmd(x.date); return `${DAYS_LONG[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}, ${hmShort(x.start)} to ${hmShort(x.end)} at ${x.loc}`; });
-  if(nextShifts.length) L.push(`Mom's next shifts: ${nextShifts.join("; ")}.`);
-  const nowHm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  for(let i = 0; i < 3; i++){
-    const d = new Date(now); d.setDate(now.getDate() + i);
-    const ev = eventsOn(d).filter(e => !/ works · /.test(e.title)).filter(e => i > 0 || e.allDay || !e.time || e.time >= nowHm);
-    const label = i === 0 ? "Calendar later today" : i === 1 ? "Calendar tomorrow" : `Calendar ${DAYS_LONG[d.getDay()]}`;
-    L.push(`${label}: ${ev.length ? ev.map(e => e.title + (e.allDay || !e.time ? " (all day)" : " at " + fmt12(e.time))).join("; ") : "nothing"}.`);
-  }
-  L.push(`Bins: next pickup ${txt("#kBins")} morning (${txt("#kBinsTag")}). Bins go out the night before.`);
-  L.push(`Sebastian's nap: ${summary("nap").line}.`);
-  const pets = summary("pets"); L.push(`Pets: ${pets.line}. ${/Not fed/.test(pets.sub) ? pets.sub + "." : ""}`);
-  L.push(`Shopping list: ${summary("shop").line}.`);
-  L.push(`Countdown: ${summary("countdown").line}.`);
-  return L.join("\n");
+  const P = briefParts(), now = new Date();
+  return [`Time: ${DAYS_LONG[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}.`,
+    `1. Greeting: ${P.greet}`, `2. Weather: ${P.weather || "unknown"}`, `3. Mom: ${P.mom}`, `4. Calendar: ${P.cal}`,
+    P.bins ? `5. Bins: ${P.bins}` : "", `6. Shopping: ${P.shop}`, P.cd ? `7. Countdown: ${P.cd}` : "",
+    "Say these in exactly this order. Do NOT mention the boys, school, naps or pets."].filter(Boolean).join("\n");
 }
 function briefingFallback(){
-  const now = new Date(), h = now.getHours();
-  const out = [`${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${CONFIG.familyName}.`];
-  if(WX){ const t = wxDay(now); out.push(`It's ${Math.round(WX.current.temperature_2m)} degrees and ${wxKind(WX.current.weather_code, WX.current.is_day)[1].toLowerCase()}${t ? `, with a high of ${Math.round(t.hi)} and a low of ${Math.round(t.lo)}` : ""}.`); }
-  ["school","mom","calendar","nap","pets","shop","countdown"].forEach(id => { const l = summary(id).line; if(l) out.push(l.replace(/ · /g, ", ") + "."); });
-  return out.join(" ");
+  const P = briefParts();
+  return [P.greet, P.weather, P.mom, P.cal, P.bins, P.shop, P.cd].filter(Boolean).join(" ");
 }
 function deviceSpeak(text, run){
   if(!("speechSynthesis" in window)) return false;
