@@ -28,6 +28,12 @@ object Prefs {
     fun setCoords(ctx: Context, place: String, lat: Double, lon: Double) =
         p(ctx).edit().putString("loc-$place", "$lat,$lon").apply()
 
+    /** Last work event the app reported for a place ("arrive"/"leave") and when — stops duplicates. */
+    fun lastWorkEvent(ctx: Context, place: String): String = p(ctx).getString("work-last-$place", "") ?: ""
+    fun lastWorkTime(ctx: Context, place: String): Long = p(ctx).getLong("work-last-ts-$place", 0L)
+    fun setLastWork(ctx: Context, place: String, event: String) =
+        p(ctx).edit().putString("work-last-$place", event).putLong("work-last-ts-$place", System.currentTimeMillis()).apply()
+
     fun lastWidgetJson(ctx: Context): String? = p(ctx).getString("widget-json", null)
     fun setLastWidgetJson(ctx: Context, v: String) = p(ctx).edit().putString("widget-json", v).apply()
 }

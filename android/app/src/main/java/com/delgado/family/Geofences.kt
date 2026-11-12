@@ -19,6 +19,7 @@ import kotlin.concurrent.thread
 
 /** Watches Mom's two workplaces and reports arrive/leave to the family script. */
 object Geofences {
+    const val NEAR = "near:"
 
     fun hasFine(ctx: Context) =
         ctx.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -59,9 +60,18 @@ object Geofences {
             if (!Prefs.workTracking(app)) { done("Work alerts are off."); return@thread }
             if (!hasFine(app) || !hasBackground(app)) { done("Location permission needed — tap the buttons above."); return@thread }
             val failed = geocodeMissing(app)
-            val fences = Config.WORKPLACES.mapNotNull { w ->
-                val c = Prefs.coords(app, w.name) ?: return@mapNotNull null
-                Geofence.Builder()
+            val fences = Config.WORKPLACES.flatMap { w ->
+                val c = Prefs.coords(app, w.name) ?: return@flatMap emptyList<Geofence>()
+                // Big "approach" ring: entering it turns on precise GPS (see WorkTracker.kt)
+                val near = Geofence.Builder()
+                    .setRequestId(NEAR + w.name)
+                    .setCircularRegion(c.first, c.second, Config.APPROACH_RADIUS_M)
+                    .setExpirationDuration(Geofence.NEVER_EXPIRE)
+                    .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+                    .setNotificationResponsiveness(0)
+                    .build()
+                // Work zone itself: backup arrive (DWELL) and the trigger to confirm leaving (EXIT)
+                listOf(near, Geofence.Builder()
                     .setRequestId(w.name)
                     .setCircularRegion(c.first, c.second, Config.GEOFENCE_RADIUS_M)
                     .setExpirationDuration(Geofence.NEVER_EXPIRE)
@@ -69,13 +79,13 @@ object Geofences {
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_DWELL or Geofence.GEOFENCE_TRANSITION_EXIT)
                     .setLoiteringDelay(Config.ARRIVE_AFTER_MS)
                     .setNotificationResponsiveness(0)       // ask Android for its fastest updates
-                    .build()
+                    .build())
             }
             if (fences.isEmpty()) { done("Couldn't find the workplaces — use the \"I'm here now\" buttons."); return@thread }
             val request = GeofencingRequest.Builder().setInitialTrigger(0).addGeofences(fences).build()
             LocationServices.getGeofencingClient(app).addGeofences(request, pendingIntent(app))
                 .addOnSuccessListener {
-                    val names = fences.joinToString(" and ") { it.requestId }
+                    val names = fences.map { it.requestId }.filter { !it.startsWith(NEAR) }.joinToString(" and ")
                     done("Watching $names." + if (failed.isNotEmpty()) " Couldn't find ${failed.joinToString()} — use its \"I'm here now\" button." else "")
                 }
                 .addOnFailureListener { e -> done("Couldn't start watching: ${e.message}. Check Location is on.") }
@@ -83,35 +93,45 @@ object Geofences {
     }
 
     fun stop(ctx: Context) {
+        WorkTrackerService.stop(ctx)
         LocationServices.getGeofencingClient(ctx.applicationContext).removeGeofences(pendingIntent(ctx.applicationContext))
     }
 }
 
-/** Android calls this when Mom's phone enters or leaves a workplace. */
+/** Android calls this when Mom's phone crosses the approach ring or the work zone. */
 class GeofenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val ev = GeofencingEvent.fromIntent(intent) ?: return
         if (ev.hasError()) return
-        val event = when (ev.geofenceTransition) {
-            Geofence.GEOFENCE_TRANSITION_DWELL -> "arrive"
-            Geofence.GEOFENCE_TRANSITION_EXIT -> "leave"
-            else -> return
-        }
-        val places = ev.triggeringGeofences?.map { it.requestId } ?: return
-        val pending = goAsync()
         val app = context.applicationContext
+        val ids = ev.triggeringGeofences?.map { it.requestId } ?: return
+        val recentlyArrived = { place: String ->
+            Prefs.lastWorkEvent(app, place) == "arrive" && System.currentTimeMillis() - Prefs.lastWorkTime(app, place) < 16 * 3600_000L }
+        val backupArrivals = mutableListOf<String>()
+        for (id in ids) {
+            val near = id.startsWith(Geofences.NEAR)
+            val place = id.removePrefix(Geofences.NEAR)
+            when (ev.geofenceTransition) {
+                // Getting close: precise GPS pins down the arrival (about a minute)
+                Geofence.GEOFENCE_TRANSITION_ENTER -> if (near && !recentlyArrived(place)) WorkTrackerService.start(app, place, WorkTrackerService.MODE_ARRIVE)
+                // Stepped out of the work zone: precise GPS confirms she really left (no more GPS-jump alerts)
+                Geofence.GEOFENCE_TRANSITION_EXIT -> when {
+                    !near && recentlyArrived(place) -> WorkTrackerService.start(app, place, WorkTrackerService.MODE_LEAVE)
+                    near && recentlyArrived(place) -> backupArrivals.add("leave:$place")    // a mile away: definitely left
+                    near -> WorkTrackerService.stop(app, place)                                // drove past without stopping
+                }
+                // Backup: Android's own "stayed 3 minutes" if approach mode didn't catch it
+                Geofence.GEOFENCE_TRANSITION_DWELL -> if (!near && !recentlyArrived(place)) backupArrivals.add("arrive:$place")
+            }
+        }
+        if (backupArrivals.isEmpty()) return
+        val pending = goAsync()
         thread {
             try {
-                for (place in places) {
-                    var ok = false
-                    for (attempt in 1..3) {             // phones often wake with a weak signal — retry a little
-                        val res = Api.post(app, JSONObject().put("action", "work").put("event", event).put("loc", place))
-                        if (res != null) { ok = true; break }
-                        Thread.sleep(5000L * attempt)
-                    }
-                    if (!ok) break
+                for (item in backupArrivals) {
+                    val (event, place) = item.split(":", limit = 2)
+                    WorkTrackerService.report(app, place, event)
                 }
-                DashboardWidget.refreshNow(app)
             } finally {
                 pending.finish()
             }

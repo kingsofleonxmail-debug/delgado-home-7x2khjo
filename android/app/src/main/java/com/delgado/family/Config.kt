@@ -25,4 +25,19 @@ object Config {
 
     /** She has to stay inside this long before it counts as "arrived" — stops drive-bys and GPS blips. */
     const val ARRIVE_AFTER_MS = 3 * 60 * 1000
+
+    // ---- Approach mode: precise GPS only near work ----
+    /** About a mile around each workplace: getting this close turns on precise GPS. */
+    const val APPROACH_RADIUS_M = 1600f
+    /** Inside the work zone this long (on precise GPS) = arrived. */
+    const val CONFIRM_INSIDE_MS = 45_000L
+    /** This far from work on two precise fixes in a row = left. */
+    const val LEAVE_CONFIRM_M = 250f
+    /** Ignore location fixes fuzzier than this (Wi-Fi/cell guesses). */
+    const val MAX_FIX_ERROR_M = 60f
+    /** How often precise GPS checks while tracking. */
+    const val TRACK_INTERVAL_MS = 10_000L
+    /** Give up if she never actually arrives (drove past, plans changed). */
+    const val APPROACH_TIMEOUT_MS = 25 * 60_000L
+    const val LEAVE_TIMEOUT_MS = 8 * 60_000L
 }
