@@ -447,8 +447,18 @@ function handleWork(b) {
   try {
     const list = readWork(date);
     const last = list[list.length - 1];
+    // "Left" only counts if she actually arrived there first (today or overnight from yesterday).
+    // A phone indoors can briefly "jump" miles away and back; that used to send a false "left" alert.
+    let arrivedHere = false;
+    if (b.event === "leave") {
+      const yest = Utilities.formatDate(new Date(now - 864e5), tz, "yyyy-MM-dd");
+      const recent = readWork(yest).concat(list).filter(function (x) { return x.loc === b.loc && now - x.ts < 20 * 3600000; });
+      const lastHere = recent[recent.length - 1];
+      arrivedHere = !!lastHere && lastHere.event === "arrive";
+    }
+    if (b.event === "leave" && !arrivedHere) skip = "no-arrive";
     // ignore GPS flapping: same event at the same place within 10 minutes
-    if (last && last.event === b.event && last.loc === b.loc && now - last.ts < 10 * 60000) skip = true;
+    else if (last && last.event === b.event && last.loc === b.loc && now - last.ts < 10 * 60000) skip = true;
     else {
       list.push({ ts: now, event: b.event, loc: b.loc });
       PropertiesService.getScriptProperties().setProperty("work-" + date, JSON.stringify(list));
@@ -457,6 +467,7 @@ function handleWork(b) {
   } finally {
     lock.releaseLock();
   }
+  if (skip === "no-arrive") return json({ ok: true, message: "ignored: left " + b.loc + " without arriving first (GPS jump)" });
   if (skip) return json({ ok: true, message: "duplicate ignored" });
   const shift = readShifts().filter(function (x) { return x.date === date && x.loc === b.loc; })[0];
   const note = shift ? " (shift " + niceTime(shift.start) + "\u2013" + niceTime(shift.end) + ")" : " (no shift on the schedule)";
