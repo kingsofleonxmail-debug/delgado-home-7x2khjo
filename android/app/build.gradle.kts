@@ -19,11 +19,12 @@ android {
 
     signingConfigs {
         create("release") {
-            // Same key every build so new versions install over old ones.
-            storeFile = file("../delgado-release.jks")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "delgado-family-app"
+            // The signing key is never stored in the repo in readable form. GitHub unlocks it at build time
+            // with the KEYSTORE_PASSWORD secret (see .github/workflows/android.yml).
+            storeFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
             keyAlias = "delgado"
-            keyPassword = System.getenv("KEYSTORE_PASSWORD") ?: "delgado-family-app"
+            keyPassword = System.getenv("KEYSTORE_PASSWORD")
         }
     }
 

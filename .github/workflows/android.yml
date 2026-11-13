@@ -24,7 +24,36 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      # The signing key lives in the repo only as a locked (encrypted) file. Your KEYSTORE_PASSWORD
+      # secret unlocks it here. The very first time, there is no key yet, so this makes a new one.
+      - name: Unlock the signing key
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Add a repository secret named KEYSTORE_PASSWORD (Settings > Secrets and variables > Actions)."; exit 1
+          fi
+          if [ ${#KEYSTORE_PASSWORD} -lt 16 ]; then
+            echo "::error::KEYSTORE_PASSWORD must be at least 16 characters."; exit 1
+          fi
+          KS="$RUNNER_TEMP/release.jks"
+          if [ -f android/release.jks.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -pass env:KEYSTORE_PASSWORD -in android/release.jks.enc -out "$KS"
+          else
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias delgado -keyalg RSA -keysize 4096 -validity 20000 \
+              -storepass:env KEYSTORE_PASSWORD -keypass:env KEYSTORE_PASSWORD -dname "CN=Delgado Family, O=Delgado Family"
+            openssl enc -e -aes-256-cbc -pbkdf2 -iter 300000 -salt -pass env:KEYSTORE_PASSWORD -in "$KS" -out android/release.jks.enc
+            git config user.name "github-actions"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add android/release.jks.enc
+            git commit -m "Add locked (encrypted) app signing key"
+            git push
+          fi
+          echo "KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
+
       - name: Build the app
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: gradle -p android assembleRelease --no-daemon --stacktrace
 
       - name: Name the file
