@@ -735,3 +735,120 @@ function handleGame(b) {
     lock.releaseLock();
   }
 }
+
+
+// ---------- Nightly recap: Sebastian's naps + pets (11:59 PM) ----------
+// Telegram gets the quick text; email gets the report card.
+// Set up once: run setupDailyRecap from the editor. Try it any time: run testDailyRecap.
+// Email goes to RECAP_EMAIL (Script Properties), or ALERT_EMAIL if RECAP_EMAIL isn't set.
+const RECAP_EMAIL = (SETTINGS.getProperty("RECAP_EMAIL") || ALERT_EMAIL || "").trim();
+
+function setupDailyRecap() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "dailyRecap") ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("dailyRecap").timeBased().atHour(23).nearMinute(59).everyDays(1).inTimezone(Session.getScriptTimeZone()).create();
+  Logger.log("Nightly recap is on: about 11:59 PM every night. Telegram " + (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID ? "yes" : "NOT set up") +
+    ", email " + (RECAP_EMAIL ? "to " + RECAP_EMAIL : "NOT set (add RECAP_EMAIL in Script Properties)") + ".");
+}
+function stopDailyRecap() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "dailyRecap") ScriptApp.deleteTrigger(t); });
+  Logger.log("Nightly recap is off.");
+}
+function testDailyRecap() { dailyRecap(true); }
+
+function dailyRecap(isTest) {
+  const tz = Session.getScriptTimeZone();
+  let day = new Date();
+  // Google runs "11:59 PM" triggers within about 15 minutes; if it lands after midnight, recap the day that just ended.
+  if (isTest !== true && Number(Utilities.formatDate(day, tz, "H")) < 12) day = new Date(day.getTime() - 864e5);
+  const date = Utilities.formatDate(day, tz, "yyyy-MM-dd");
+  const r = buildRecap(date);
+  const out = [];
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) {
+    const res = telegram("sendMessage", { chat_id: TELEGRAM_CHAT_ID, text: r.text, parse_mode: "HTML", disable_web_page_preview: true });
+    out.push("Telegram: " + (res.ok ? "sent" : res.why));
+  }
+  if (RECAP_EMAIL) {
+    try { MailApp.sendEmail({ to: RECAP_EMAIL, subject: r.subject, body: r.plain, htmlBody: r.html, name: "Delgado Family Dashboard" }); out.push("Email: sent"); }
+    catch (err) { out.push("Email: " + String(err.message || err).slice(0, 120)); }
+  }
+  Logger.log("Recap for " + date + " -> " + (out.join(" | ") || "nowhere to send (set up Telegram or RECAP_EMAIL)"));
+}
+
+function readLog(date) {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty("log-" + date) || "[]"); } catch (e) { return []; }
+}
+function napMinutes(n) { return n.end ? Math.max(0, Math.round((n.end - n.ts) / 60000)) : 0; }
+function dur(min) { const h = Math.floor(min / 60), m = min % 60; return h ? h + "h" + (m ? " " + m + "m" : "") : m + "m"; }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+function buildRecap(date) {
+  const tz = Session.getScriptTimeZone();
+  const d = new Date(date + "T12:00:00");
+  const dayLong = Utilities.formatDate(d, tz, "EEEE, MMM d"), dayShort = Utilities.formatDate(d, tz, "EEE MMM d");
+  const log = readLog(date).sort(function (a, b) { return a.ts - b.ts; });
+  const t = function (ms) { return fmtTime(ms); };
+
+  // Naps
+  const naps = log.filter(function (e) { return e.type === "nap"; });
+  const total = naps.reduce(function (s, n) { return s + napMinutes(n); }, 0);
+  // usual = average of the previous days that have naps logged
+  const prev = [];
+  for (let i = 1; i <= 6; i++) {
+    const pd = Utilities.formatDate(new Date(d.getTime() - i * 864e5), tz, "yyyy-MM-dd");
+    const m = readLog(pd).filter(function (e) { return e.type === "nap"; }).reduce(function (s, n) { return s + napMinutes(n); }, 0);
+    if (m > 0) prev.push(m);
+  }
+  const usual = prev.length ? Math.round(prev.reduce(function (a, b) { return a + b; }, 0) / prev.length) : 0;
+  const napLine = function (n) { return t(n.ts) + " \u2013 " + (n.end ? t(n.end) + " (" + dur(napMinutes(n)) + ")" : "still asleep?"); };
+
+  // Pets
+  const PETS = [["dogfed", "\uD83D\uDC36", "Fed dog"], ["catfed", "\uD83D\uDC31", "Fed cat"], ["dogsout", "\uD83E\uDDAE", "Dogs out"], ["litter", "\uD83E\uDDF9", "Litterbox"]];
+  const pets = PETS.map(function (p) { return { key: p[0], icon: p[1], name: p[2], list: log.filter(function (e) { return e.type === p[0]; }) }; });
+  const done = pets.filter(function (p) { return p.list.length; }).length;
+
+  // ---- A: quick text (Telegram) ----
+  let text = "\uD83C\uDF19 <b>" + esc(dayLong) + " \u2014 day recap</b>\n\n";
+  text += "\uD83D\uDE34 <b>Sebastian</b>: " + (naps.length ? naps.length + " nap" + (naps.length > 1 ? "s" : "") + " \u00B7 " + dur(total) + " total\n" +
+    naps.map(function (n) { return "   \u2022 " + napLine(n); }).join("\n") : "no naps logged") + "\n\n";
+  text += "\uD83D\uDC3E <b>Pets</b>\n" + pets.map(function (p) {
+    if (!p.list.length) return "   " + p.icon + " " + p.name + " \u2014 \u274C not done today";
+    if (p.key === "dogsout") return "   " + p.icon + " " + p.name + " \u2014 " + p.list.length + " time" + (p.list.length > 1 ? "s" : "") + " (last " + t(p.list[p.list.length - 1].ts) + ")";
+    return "   " + p.icon + " " + p.name + " \u2014 " + p.list.map(function (e) { return t(e.ts); }).join(", ") + " \u2705";
+  }).join("\n");
+
+  // ---- B: report card (email) ----
+  const subject = "\uD83C\uDF19 Day recap \u00B7 " + dayShort + " \u2014 " + (naps.length ? naps.length + " nap" + (naps.length > 1 ? "s" : "") : "no naps") + ", pets " + done + " of 4";
+  const row = function (l, r, cls) {
+    return '<tr><td style="padding:7px 0;border-top:1px dashed #eef0f3;font-size:14px;color:#1f2937">' + l + '</td>' +
+      '<td style="padding:7px 0;border-top:1px dashed #eef0f3;font-size:14px;text-align:right;font-weight:700;color:' + (cls === "no" ? "#dc2626" : cls === "ok" ? "#059669" : "#374151") + '">' + r + '</td></tr>';
+  };
+  let usualHtml = "";
+  if (usual && total) {
+    const diff = total - usual, pct = Math.min(100, Math.round(total / Math.max(total, usual * 1.3) * 100));
+    usualHtml = '<div style="height:8px;border-radius:99px;background:#eef2f7;margin:8px 0 3px"><div style="height:8px;width:' + pct + '%;border-radius:99px;background:#22d3ee"></div></div>' +
+      '<div style="font-size:12px;color:#6b7280">Usual: about ' + dur(usual) + " \u2014 " + (Math.abs(diff) < 15 ? "about normal" : diff > 0 ? "a bit more than normal" : "a bit less than normal") + "</div>";
+  }
+  const card = function (title, inner) {
+    return '<div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin:0 0 12px">' +
+      '<div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;font-weight:700;margin-bottom:8px">' + title + "</div>" + inner + "</div>";
+  };
+  const napsHtml = naps.length
+    ? '<div style="font-size:28px;font-weight:900;color:#111827">' + dur(total) + ' <span style="font-size:14px;color:#6b7280;font-weight:600">\u00B7 ' + naps.length + " nap" + (naps.length > 1 ? "s" : "") + "</span></div>" + usualHtml +
+      '<table style="width:100%;border-collapse:collapse;margin-top:8px">' + naps.map(function (n) {
+        return row(n.end ? t(n.ts) + " \u2013 " + t(n.end) : t(n.ts) + " \u2013 ?", (n.end ? dur(napMinutes(n)) : "no end logged") + (n.who ? " \u00B7 " + esc(n.who) : ""));
+      }).join("") + "</table>"
+    : '<div style="font-size:15px;color:#6b7280">No naps logged today.</div>';
+  const petsHtml = '<table style="width:100%;border-collapse:collapse">' + pets.map(function (p) {
+    if (!p.list.length) return row(p.icon + " " + p.name, "Missed today", "no");
+    if (p.key === "dogsout") return row(p.icon + " " + p.name, p.list.length + "\u00D7 \u00B7 last " + t(p.list[p.list.length - 1].ts), "ok");
+    return row(p.icon + " " + p.name, p.list.map(function (e) { return t(e.ts) + (e.who ? " " + esc(e.who) : ""); }).join(" \u00B7 "), "ok");
+  }).join("") + "</table>";
+  const html = '<div style="font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:8px">' +
+    '<div style="background:linear-gradient(135deg,#0b1730,#15284f);background-color:#0b1730;color:#e8eefc;border-radius:12px;padding:16px 18px;margin-bottom:14px">' +
+    '<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#22d3ee;font-weight:800">' + esc(Utilities.formatDate(d, tz, "EEEE \u00B7 MMM d")) + "</div>" +
+    '<div style="font-size:20px;font-weight:800;margin-top:4px">' + (naps.length ? "Sebastian napped " + dur(total) : "No naps logged") + " \u00B7 Pets " + done + " of 4" + (done === 4 ? " \u2713" : "") + "</div></div>" +
+    card("\uD83D\uDE34 Sebastian's naps", napsHtml) + card("\uD83D\uDC3E Pets", petsHtml) +
+    '<div style="font-size:11px;color:#9ca3af;text-align:center;margin-top:6px">\u2014 Delgado Family Dashboard</div></div>';
+  const plain = text.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  return { text: text, html: html, plain: plain, subject: subject };
+}
