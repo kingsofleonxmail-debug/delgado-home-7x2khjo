@@ -41,6 +41,26 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .go{font:inherit;width:100%;font-size:16px;font-weight:800;color:#06121f;background:var(--acc);border:0;border-radius:12px;padding:13px;cursor:pointer;box-shadow:0 0 18px rgba(var(--acc-rgb),.45)}
 .go:focus-visible,.who button:focus-visible,#bar button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .how{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+.hrow{display:flex;align-items:center;gap:8px;justify-content:center}
+.hrow h1{flex:1;text-align:left}
+.pts{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.55);color:#fcd38d;font-weight:800;font-size:13px;border-radius:99px;padding:5px 10px;white-space:nowrap}
+.row2{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.alt{font:inherit;font-size:15px;font-weight:800;color:var(--text);background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:13px 6px;cursor:pointer}
+.alt:focus-visible,.sk button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+#skinCard{max-height:calc(100% - 8px);overflow-y:auto;text-align:center}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.sk{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:7px;position:relative}
+.sk.eq{border-color:var(--acc);box-shadow:0 0 14px rgba(var(--acc-rgb),.25)}
+.sk.wide{grid-column:span 2}
+.sk canvas{position:static;width:100%;height:74px;display:block;border-radius:10px}
+.sk.locked canvas{filter:grayscale(.85) brightness(.55)}
+.sk .lk{position:absolute;top:9px;right:11px;font-size:15px}
+.sk .n{font-weight:800;font-size:14px;margin-top:5px}.sk .d{font-size:10.5px;color:var(--muted)}
+.sk button{font:inherit;width:100%;margin-top:6px;font-size:12px;font-weight:800;border-radius:9px;padding:8px 4px;cursor:pointer;border:0}
+.b-eq{background:rgba(var(--acc-rgb),.15);color:var(--acc)}.b-use{background:#13203d;color:var(--text);border:1px solid var(--line2)!important}
+.b-buy{background:var(--acc);color:#06121f;box-shadow:0 0 12px rgba(var(--acc-rgb),.4)}.b-lock{background:#0b1220;color:#5b6788;border:1px dashed var(--line2)!important;cursor:default!important}
+.sbar{height:6px;border-radius:99px;background:var(--line);margin-top:6px;overflow:hidden}.sbar i{display:block;height:100%;background:var(--warm)}
+.smsg{font-size:12px;color:var(--warm);min-height:1em;margin:-4px 0 8px}
 .tip{display:none;font-size:11px;color:var(--acc);margin-top:6px;font-weight:700}
 .tall .tip{display:block}
 .tall #ov{place-items:start center;padding-top:6vh}
@@ -58,15 +78,23 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <canvas id="cv"></canvas>
     <div id="ov">
       <div class="card" id="startCard">
-        <h1>Sheepdog <em>Run</em></h1>
+        <div class="hrow"><h1>Sheepdog <em>Run</em></h1><span class="pts" id="ptsChip">⭐ 0 pts</span></div>
         <div class="sub">Jump the bins, boxes and hydrants. Duck the birds!</div>
         <div class="bh"><span>Who's playing?</span></div>
         <div class="who" id="who"></div>
         <div class="bh"><span>Family best</span><span id="syncTag"></span></div>
         <div class="board" id="board"></div>
-        <button type="button" class="go" id="play">▶ Play</button>
+        <div class="row2"><button type="button" class="go" id="play">▶ Play</button><button type="button" class="alt" id="skinsBtn">🎨 Skins</button></div>
         <div class="how" id="how"></div>
         <div class="tip">📱 Tip: turn your phone sideways for a wider view</div>
+      </div>
+      <div class="card" id="skinCard" hidden>
+        <div class="hrow"><h1>🎨 <em>Skins</em></h1><span class="pts" id="ptsChip2">⭐ 0 pts</span></div>
+        <div class="who" id="who2" style="margin-top:12px"></div>
+        <div class="how" style="margin:0 0 10px">Earn points by logging pets on the dashboard: 🐶 🐱 🦮 = 1 point · 🧹 litterbox = 10 points. Unlocking spends points.</div>
+        <div class="smsg" id="smsg"></div>
+        <div class="sgrid" id="sgrid"></div>
+        <button type="button" class="go" id="skinsDone">‹ Back</button>
       </div>
       <div class="card" id="overCard" hidden>
         <h1>Woof! <em>Game over</em></h1>
@@ -107,7 +135,9 @@ let board = store.get("fd-game-board", {});          // last family board from t
 let pending = store.get("fd-game-pending", {});      // scores waiting to sync
 const best = p => Math.max(local[p] || 0, (board[p] && board[p].score) || 0);
 function renderWho(){
-  $("who").innerHTML = PEOPLE.map(p => `<button type="button" data-p="${p}" class="${p === who ? "on" : ""}" aria-pressed="${p === who}">${p}</button>`).join("");
+  const html = PEOPLE.map(p => `<button type="button" data-p="${p}" class="${p === who ? "on" : ""}" aria-pressed="${p === who}">${p}</button>`).join("");
+  $("who").innerHTML = html; const w2 = document.getElementById("who2"); if(w2) w2.innerHTML = html;
+  if(typeof renderSkinUi === "function") renderSkinUi();
 }
 function renderBoard(){
   const rows = PEOPLE.map(p => [p, best(p)]).sort((a,b) => b[1] - a[1]);
@@ -126,6 +156,10 @@ async function sync(){
     const res = await fetch(SYNC_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ key, action: "game", scores }) }).then(r => r.json());
     if(res && res.board){ board = res.board; store.set("fd-game-board", board); pending = {}; store.set("fd-game-pending", pending); renderBoard(); }
+    if(res && res.points){ skinState = { points: res.points, skins: res.skins || {} }; store.set("fd-game-skins", skinState);
+      // keep a pick made offline
+      if(localEquip[who] && skinState.skins[who] && skinState.skins[who].equipped !== localEquip[who] && owned(who).includes(localEquip[who])) skinState.skins[who].equipped = localEquip[who];
+      renderSkinUi(); }
   } catch(e){}
 }
 function recordScore(s){
@@ -154,7 +188,7 @@ const SFX = { jump: () => beep(520, .12, "square", .045, 1.6), point: () => { be
   crash: () => { beep(220, .25, "sawtooth", .06, .4); setTimeout(() => beep(110, .3, "square", .05, .5), 120); }, woof: () => { beep(330, .09, "sawtooth", .05, .6); setTimeout(() => beep(300, .12, "sawtooth", .05, .55), 140); } };
 
 /* ===== Game ===== */
-const cv = $("cv"), cx = cv.getContext("2d");
+const cv = $("cv"); let cx = cv.getContext("2d");
 const H = 240;                       // world height in game units
 let W = 400, S = 1, DPR = 1, OY = 0;  // world width (depends on screen), scale, pixel ratio, vertical offset (tall screens)
 const GROUND = 196;                  // y of the sidewalk top
@@ -251,7 +285,7 @@ function crash(){
 }
 function start(){
   if(state === "play") return;
-  reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; SFX.woof();
+  reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; $("skinCard").hidden = true; SFX.woof();
   try { AC && AC.resume && AC.resume(); } catch(e){}
 }
 
@@ -350,6 +384,17 @@ function drawObstacle(o, k){
 /* Old English Sheepdog: grey back and rear, white head, chest and legs, shaggy fringe over the eyes, black nose */
 function fluff(x, y, r, col){ cx.fillStyle = col; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
 function drawDog(d, k){
+  const id = skin();
+  if(id === "sheepdog" || !SKIN_DRAW[id]) return drawSheepdog(d, k);
+  const ducking = d.duck && d.onGround, x = d.x, base = d.y, ph = d.onGround ? d.run : 0.6;
+  const bob = d.onGround ? Math.abs(Math.sin(ph)) * 1.6 : 0;
+  cx.fillStyle = "rgba(0,0,0,.18)"; cx.beginPath(); cx.ellipse(x, GROUND + 2, ducking ? 24 : 20 - Math.min(10, (GROUND - base) / 8), 3, 0, 0, 7); cx.fill();
+  cx.save(); cx.translate(x, base - bob); if(ducking) cx.scale(1.18, .66);
+  SKIN_DRAW[id]({ ph, ground: d.onGround, tongue: d.onGround && state === "play", k });
+  cx.restore();
+  if(state === "over"){ cx.fillStyle = k > .5 ? "#fde68a" : "#f59e0b"; cx.font = "bold 12px sans-serif"; cx.textAlign = "center"; cx.fillText("✶", x + 22, base - 50 + Math.sin(t * 8) * 2); }
+}
+function drawSheepdog(d, k){
   const W1 = mix("#f5f5f2", "#c9cfdc", k * .6), W2 = mix("#e3e3de", "#aeb6c8", k * .6), G1 = mix("#8a919c", "#5b6478", k * .5), G2 = mix("#6f7682", "#495267", k * .5);
   const ducking = d.duck && d.onGround;
   const x = d.x, base = d.y;
@@ -392,6 +437,215 @@ function drawDog(d, k){
   if(state === "over"){ cx.fillStyle = k > .5 ? "#fde68a" : "#f59e0b"; cx.font = "bold 12px sans-serif"; cx.textAlign = "center"; cx.fillText("✶", x + 22, base - 50 + Math.sin(t * 8) * 2); }
 }
 
+/* Sheepdog Run: pet skins. Each draw function draws a runner facing right, with its feet at (0, 0).
+   Uses the game's helpers: cx (canvas), fluff(x, y, r, col), rr(x, y, w, h, r), mix(c1, c2, k).
+   p = { ph: run phase, ground: on the ground, tongue: show tongue, k: night 0..1 } */
+const SKINS = [
+  { id: "sheepdog", name: "Sheepdog", desc: "Old English Sheepdog", cost: 0 },
+  { id: "sophie",   name: "Sophie",   desc: "Fluffy grey cat · pink collar", cost: 10 },
+  { id: "sammie",   name: "Sammie",   desc: "Sheepadoodle · space buns", cost: 10 },
+  { id: "santi",    name: "Santi",    desc: "Big grey tabby", cost: 10 },
+  { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 }
+];
+
+function skinLeg(lx, top, len, a, p, col, paw, w){
+  const sw = p.ground ? Math.sin(p.ph + a) * 5 : (a ? -3 : 4);
+  cx.fillStyle = col; rr(lx + sw - w / 2, top, w, len, w / 2); cx.fill();
+  cx.fillStyle = paw; cx.beginPath(); cx.ellipse(lx + sw + .5, top + len - 1, w * .62, 2.1, 0, 0, 7); cx.fill();
+}
+function catEar(x, y, w, h, outer, inner, lean){
+  cx.fillStyle = outer; cx.beginPath(); cx.moveTo(x - w / 2, y); cx.lineTo(x + lean, y - h); cx.lineTo(x + w / 2, y); cx.closePath(); cx.fill();
+  if(inner){ cx.fillStyle = inner; cx.beginPath(); cx.moveTo(x - w / 4, y - 1); cx.lineTo(x + lean * .8, y - h * .62); cx.lineTo(x + w / 4, y - 1); cx.closePath(); cx.fill(); }
+}
+function catEye(x, y, col, r){
+  cx.fillStyle = col; cx.beginPath(); cx.ellipse(x, y, r * 1.15, r, 0, 0, 7); cx.fill();
+  cx.fillStyle = "#111827"; cx.beginPath(); cx.ellipse(x + .3, y, r * .32, r * .9, 0, 0, 7); cx.fill();
+  cx.fillStyle = "rgba(255,255,255,.85)"; cx.beginPath(); cx.arc(x - r * .35, y - r * .35, r * .25, 0, 7); cx.fill();
+}
+function whiskers(x, y){
+  cx.strokeStyle = "rgba(255,255,255,.75)"; cx.lineWidth = .6;
+  [[-1, -1.5], [0, 0], [1, 1.5]].forEach(([dy, s]) => { cx.beginPath(); cx.moveTo(x, y + dy); cx.lineTo(x + 9, y + dy * 2 + s * .4); cx.stroke(); });
+}
+
+/* Sophie: fluffy grey cat with a pink collar */
+function drawSophie(p){
+  const k = p.k, G1 = mix("#a7aeb8", "#6d7586", k * .5), G2 = mix("#8c939e", "#596173", k * .5), L = mix("#cfd4da", "#9aa2b3", k * .5);
+  skinLeg(-12, -11, 11, Math.PI, p, G2, G1, 5); skinLeg(8, -11, 11, 0, p, G2, G1, 5);
+  // big fluffy tail, curving up
+  const tw = p.ground ? Math.sin(p.ph * .5) * 2 : 0;
+  [[-20, -17, 5.5], [-25, -21, 6], [-28, -27, 6.2], [-28.5 + tw * .4, -33, 5.8], [-26 + tw, -38, 5]].forEach(c => fluff(c[0], c[1], c[2], G1));
+  // body
+  fluff(-12, -17, 9, G1); fluff(-3, -19, 10, G1); fluff(6, -18, 9, G1); fluff(-6, -12, 7, L); fluff(4, -12, 7, L);
+  skinLeg(-6, -11, 11, Math.PI * .5, p, G1, L, 5); skinLeg(12, -11, 11, Math.PI * 1.5, p, G1, L, 5);
+  // head
+  const hx = 17, hy = -25 + (p.ground ? Math.sin(p.ph * 2) * .5 : -1);
+  catEar(hx - 5, hy - 5, 7, 9, G1, "#f9a8d4", -1); catEar(hx + 4, hy - 5, 7, 9, G1, "#f9a8d4", 1);
+  fluff(hx - 5, hy + 4, 7, G1); fluff(hx, hy, 9, G1); fluff(hx + 4, hy + 4, 6.5, L);
+  // cheek ruff
+  cx.fillStyle = G1; for(let i = 0; i < 4; i++){ cx.beginPath(); cx.moveTo(hx - 8 + i * 2, hy + 7); cx.lineTo(hx - 9 + i * 2.4, hy + 12); cx.lineTo(hx - 5 + i * 2, hy + 8); cx.fill(); }
+  catEye(hx + 3.5, hy - 1, "#86efac", 2.1);
+  cx.fillStyle = "#f472b6"; cx.beginPath(); cx.moveTo(hx + 9, hy + 3); cx.lineTo(hx + 11, hy + 3); cx.lineTo(hx + 10, hy + 4.6); cx.fill();
+  whiskers(hx + 9, hy + 5);
+  // pink collar + bell
+  cx.strokeStyle = "#ec4899"; cx.lineWidth = 3; cx.lineCap = "round"; cx.beginPath(); cx.arc(hx - 2, hy + 1, 9.5, Math.PI * .45, Math.PI * .95); cx.stroke();
+  cx.fillStyle = "#fbbf24"; cx.beginPath(); cx.arc(hx - 1, hy + 10.6, 1.9, 0, 7); cx.fill();
+  cx.fillStyle = "#b45309"; cx.fillRect(hx - 1.4, hy + 11.2, .8, .9);
+}
+
+/* Sammie: white and black sheepadoodle with pink hair ties and space buns */
+function drawSammie(p){
+  const k = p.k, W1 = mix("#f7f7f4", "#ccd2de", k * .55), W2 = mix("#e6e6e1", "#b0b8ca", k * .55), B1 = mix("#262a31", "#1a1e28", k * .3), B2 = mix("#3a3f48", "#272c38", k * .3);
+  const curls = (x, y, rx, ry, col, n) => { for(let i = 0; i < n; i++){ const a = i / n * Math.PI * 2; fluff(x + Math.cos(a) * rx, y + Math.sin(a) * ry, 4.2, col); } fluff(x, y, Math.min(rx, ry), col); };
+  skinLeg(-12, -12, 12, Math.PI, p, W2, W1, 7); skinLeg(8, -12, 12, 0, p, B2, W1, 7);
+  // curly tail up
+  fluff(-23, -26, 4.5, W1); fluff(-25, -31, 4, W1); fluff(-23.5, -35, 3.5, W2);
+  // body: white with a black saddle
+  curls(-6, -20, 13, 7, W1, 10);
+  curls(-9, -24, 7, 4, B1, 7);
+  skinLeg(-6, -12, 12, Math.PI * .5, p, W1, W2, 7); skinLeg(13, -12, 12, Math.PI * 1.5, p, W1, W2, 7);
+  // head
+  const hx = 18, hy = -30 + (p.ground ? Math.sin(p.ph * 2) * .6 : -1);
+  curls(hx, hy, 6, 5, W1, 9);
+  // space buns with pink hair ties
+  [[hx - 5, hy - 10, B1], [hx + 4, hy - 11, W2]].forEach(([bx, by, col]) => {
+    fluff(bx, by, 4.8, col); fluff(bx - 1.5, by - 1.5, 2.6, col === B1 ? B2 : W1);
+    cx.fillStyle = "#ec4899"; rr(bx - 3.4, by + 3.2, 6.8, 2.4, 1.2); cx.fill();
+  });
+  // floppy black ear
+  fluff(hx - 7, hy + 3, 4.6, B1); fluff(hx - 8, hy + 8, 4, B1);
+  // eye patch + eye
+  fluff(hx + 4, hy - 1, 3.2, B2);
+  cx.fillStyle = "#0b0d12"; cx.beginPath(); cx.arc(hx + 4.6, hy - .6, 1.5, 0, 7); cx.fill();
+  cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(hx + 4.1, hy - 1.2, .5, 0, 7); cx.fill();
+  // muzzle + nose
+  fluff(hx + 10, hy + 4, 4.6, W1);
+  cx.fillStyle = "#111827"; cx.beginPath(); cx.ellipse(hx + 14, hy + 2.8, 2.5, 2, 0, 0, 7); cx.fill();
+  if(p.tongue){ cx.fillStyle = "#f472b6"; rr(hx + 8.5, hy + 7.5, 3.4, 3.5 + Math.abs(Math.sin(p.ph)) * 2, 1.4); cx.fill(); }
+}
+
+/* Santi: very round grey tabby */
+function drawSanti(p){
+  const k = p.k, G1 = mix("#9ca3ad", "#646c7d", k * .5), G2 = mix("#7d848f", "#525a6b", k * .5), L = mix("#d6dadf", "#a0a8b8", k * .5), S = mix("#565d68", "#3c4352", k * .4);
+  const jig = p.ground ? Math.sin(p.ph * 2) * .8 : 0;
+  skinLeg(-13, -7, 7, Math.PI, p, G2, G1, 6); skinLeg(9, -7, 7, 0, p, G2, G1, 6);
+  // tail, striped
+  cx.strokeStyle = G1; cx.lineWidth = 5; cx.lineCap = "round"; cx.beginPath(); cx.moveTo(-20, -15); cx.quadraticCurveTo(-31, -18, -30, -28); cx.stroke();
+  cx.strokeStyle = S; cx.lineWidth = 5.2; [[-25.5, -17.2], [-29.6, -22]].forEach(([x, y]) => { cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x + .1, y - 1.6); cx.stroke(); });
+  // big round body
+  cx.save(); cx.translate(-2, -15); cx.scale(1, 1 + jig * .02);
+  cx.fillStyle = G1; cx.beginPath(); cx.ellipse(0, 0, 20, 14 + jig * .3, 0, 0, 7); cx.fill();
+  cx.fillStyle = L; cx.beginPath(); cx.ellipse(3, 6, 14, 7, 0, 0, 7); cx.fill();
+  // tabby stripes on the back
+  cx.strokeStyle = S; cx.lineWidth = 2.2; cx.lineCap = "round";
+  for(let i = 0; i < 5; i++){ const x = -13 + i * 6; cx.beginPath(); cx.moveTo(x, -12 + Math.abs(i - 2) * 1.2); cx.quadraticCurveTo(x + 2, -6, x, -1); cx.stroke(); }
+  cx.restore();
+  skinLeg(-7, -7, 7, Math.PI * .5, p, G1, L, 6); skinLeg(13, -7, 7, Math.PI * 1.5, p, G1, L, 6);
+  // head
+  const hx = 18, hy = -22 + (p.ground ? Math.sin(p.ph * 2) * .5 : -1);
+  catEar(hx - 5, hy - 5, 7, 7, G1, "#f9a8d4", -1); catEar(hx + 4, hy - 5, 7, 7, G1, "#f9a8d4", 1);
+  cx.fillStyle = G1; cx.beginPath(); cx.ellipse(hx, hy + 1, 10, 9, 0, 0, 7); cx.fill();
+  fluff(hx + 5, hy + 5, 5, L);
+  // the tabby "M" on the forehead
+  cx.strokeStyle = S; cx.lineWidth = 1.3; cx.beginPath(); cx.moveTo(hx - 4, hy - 2); cx.lineTo(hx - 2.5, hy - 6); cx.lineTo(hx, hy - 3); cx.lineTo(hx + 2.5, hy - 6); cx.lineTo(hx + 4, hy - 2); cx.stroke();
+  cx.beginPath(); cx.moveTo(hx - 9, hy + 2); cx.lineTo(hx - 5, hy + 2.6); cx.moveTo(hx - 9, hy + 4.5); cx.lineTo(hx - 5, hy + 4.6); cx.stroke();
+  catEye(hx + 4.5, hy + .5, "#d9f99d", 2);
+  cx.fillStyle = "#f472b6"; cx.beginPath(); cx.moveTo(hx + 9, hy + 4); cx.lineTo(hx + 11, hy + 4); cx.lineTo(hx + 10, hy + 5.6); cx.fill();
+  whiskers(hx + 9, hy + 6);
+}
+
+/* Da Baby: African wildcat kitten (sandy, big ears, ringed tail with a black tip) */
+function drawDaBaby(p){
+  const k = p.k, T1 = mix("#d4b07a", "#8d7a5f", k * .5), T2 = mix("#b8915a", "#6f5f4a", k * .5), C = mix("#f3e6cf", "#bfb5a5", k * .5), D = mix("#3b2f25", "#2a221c", k * .3), R = "#c2410c";
+  // legs with dark bands
+  const bandLeg = (lx, a, col) => { skinLeg(lx, -10, 10, a, p, col, C, 4.4); const sw = p.ground ? Math.sin(p.ph + a) * 5 : (a ? -3 : 4); cx.fillStyle = D; cx.fillRect(lx + sw - 2.2, -6.5, 4.4, 1.2); cx.fillRect(lx + sw - 2.2, -3.8, 4.4, 1.1); };
+  bandLeg(-10, Math.PI, T2); bandLeg(6, 0, T2);
+  // long thin ringed tail with a black tip
+  const tw = p.ground ? Math.sin(p.ph * .7) * 1.5 : 0;
+  cx.strokeStyle = T1; cx.lineWidth = 3.4; cx.lineCap = "round"; cx.beginPath(); cx.moveTo(-15, -14); cx.quadraticCurveTo(-27, -14 + tw, -31, -24 + tw); cx.stroke();
+  cx.strokeStyle = D; cx.lineWidth = 3.6; [[-22, -14.6], [-26.3, -16.6]].forEach(([x, y]) => { cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x - .6, y - .9); cx.stroke(); });
+  cx.beginPath(); cx.moveTo(-30, -21.5 + tw); cx.lineTo(-31, -24 + tw); cx.stroke();
+  // slim kitten body
+  cx.fillStyle = T1; cx.beginPath(); cx.ellipse(-3, -15, 14, 7.5, 0, 0, 7); cx.fill();
+  cx.fillStyle = C; cx.beginPath(); cx.ellipse(-1, -11, 10, 3.6, 0, 0, 7); cx.fill();
+  cx.strokeStyle = T2; cx.lineWidth = 1.4; for(let i = 0; i < 4; i++){ cx.beginPath(); cx.moveTo(-11 + i * 5, -21); cx.lineTo(-12 + i * 5, -15); cx.stroke(); }
+  bandLeg(-5, Math.PI * .5, T1); bandLeg(10, Math.PI * 1.5, T1);
+  // big kitten head + big ears
+  const hx = 15, hy = -24 + (p.ground ? Math.sin(p.ph * 2) * .6 : -1);
+  catEar(hx - 5, hy - 5, 8, 12, T2, R, -1.5); catEar(hx + 5, hy - 5, 8, 12, T2, R, 1.5);
+  cx.fillStyle = D; [[hx - 6.5, hy - 17], [hx + 6.5, hy - 17]].forEach(([x, y]) => { cx.beginPath(); cx.arc(x, y + .6, 1.3, 0, 7); cx.fill(); });
+  cx.fillStyle = T1; cx.beginPath(); cx.arc(hx, hy, 10.5, 0, 7); cx.fill();
+  fluff(hx + 5, hy + 5, 5.2, C);
+  // forehead stripes + cheek line
+  cx.strokeStyle = T2; cx.lineWidth = 1.2; [-2.5, 0, 2.5].forEach(o => { cx.beginPath(); cx.moveTo(hx + o, hy - 9); cx.lineTo(hx + o * .8, hy - 4.5); cx.stroke(); });
+  cx.beginPath(); cx.moveTo(hx + 2, hy + 1.5); cx.lineTo(hx - 4, hy + 4); cx.stroke();
+  catEye(hx + 4.2, hy - 1, "#fbbf24", 2.8);
+  cx.fillStyle = "#e88aa0"; cx.beginPath(); cx.moveTo(hx + 9.4, hy + 3); cx.lineTo(hx + 11.4, hy + 3); cx.lineTo(hx + 10.4, hy + 4.6); cx.fill();
+  whiskers(hx + 9.5, hy + 5);
+}
+const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby };
+
+/* ===== Skins: points, unlocks, which pet runs ===== */
+let skinState = store.get("fd-game-skins", { points: {}, skins: {} });
+let localEquip = store.get("fd-game-equip", {});
+const owned = p => ["sheepdog"].concat((skinState.skins[p] && skinState.skins[p].owned) || []);
+function skin(){ const e = (skinState.skins[who] && skinState.skins[who].equipped) || localEquip[who] || "sheepdog"; return owned(who).includes(e) ? e : "sheepdog"; }
+const skinName = id => (SKINS.find(x => x.id === id) || SKINS[0]).name;
+const pts = () => (skinState.points && skinState.points[who]) || 0;
+function renderSkinUi(){
+  $("ptsChip").textContent = `⭐ ${pts()} pts`; $("ptsChip2").textContent = `⭐ ${pts()} pts`;
+  $("play").textContent = `▶ Play as ${skinName(skin())}`;
+  if(!$("skinCard").hidden) renderSkins();
+}
+function previewScene(c, id){
+  const keep = cx; cx = c.getContext("2d");
+  const s = c.height / 74, Hh = 74, W = c.width / s, g = Hh * .78;
+  cx.setTransform(s, 0, 0, s, 0, 0);
+  const sky = cx.createLinearGradient(0, 0, 0, g); sky.addColorStop(0, "#7cc4f2"); sky.addColorStop(1, "#dff1fb"); cx.fillStyle = sky; cx.fillRect(0, 0, W, Hh);
+  cx.fillStyle = "#6fbf5a"; cx.fillRect(0, g - 4, W, 5); cx.fillStyle = "#c9ced6"; cx.fillRect(0, g, W, Hh);
+  cx.fillStyle = "rgba(0,0,0,.18)"; cx.beginPath(); cx.ellipse(W / 2, g + 2, 20, 3, 0, 0, 7); cx.fill();
+  cx.save(); cx.translate(W / 2 - 2, g);
+  if(id === "sheepdog"){ const save = { x: dog.x, y: dog.y, run: dog.run, onGround: dog.onGround, duck: dog.duck };
+    cx.restore(); cx.save(); cx.translate(0, g - GROUND);
+    Object.assign(dog, { x: W / 2 - 2, y: GROUND, run: 1.3, onGround: true, duck: false });
+    drawSheepdog(dog, 0); Object.assign(dog, save); cx.restore(); }
+  else { SKIN_DRAW[id]({ ph: 1.3, ground: true, tongue: true, k: 0 }); cx.restore(); }
+  cx = keep;
+}
+function renderSkins(){
+  const mine = owned(who), eq = skin(), p = pts();
+  $("sgrid").innerHTML = SKINS.map(sk => {
+    const has = mine.includes(sk.id), can = p >= sk.cost, wide = sk.id === "dababy";
+    let btn;
+    if(sk.id === eq) btn = `<button type="button" class="b-eq" disabled>✓ Running</button>`;
+    else if(has) btn = `<button type="button" class="b-use" data-equip="${sk.id}">Use</button>`;
+    else if(can) btn = `<button type="button" class="b-buy" data-unlock="${sk.id}">Unlock · ${sk.cost} pts</button>`;
+    else btn = `<div class="sbar"><i style="width:${Math.round(p / sk.cost * 100)}%"></i></div><button type="button" class="b-lock" disabled>🔒 ${p} of ${sk.cost} pts · ${sk.cost - p} more</button>`;
+    return `<div class="sk${sk.id === eq ? " eq" : ""}${!has && !can ? " locked" : ""}${wide ? " wide" : ""}">${!has && !can ? '<span class="lk">🔒</span>' : ""}
+      <canvas data-prev="${sk.id}" width="${wide ? 680 : 340}" height="148"></canvas><div class="n">${sk.name}${sk.cost === 25 ? " ⭐" : ""}</div><div class="d">${sk.desc}</div>${btn}</div>`;
+  }).join("");
+  $("sgrid").querySelectorAll("canvas[data-prev]").forEach(c => previewScene(c, c.dataset.prev));
+}
+async function skinOp(op, id){
+  $("smsg").textContent = "";
+  if(op === "equip"){ localEquip[who] = id; store.set("fd-game-equip", localEquip);
+    if(skinState.skins[who]) skinState.skins[who].equipped = id; store.set("fd-game-skins", skinState); renderSkinUi(); }
+  const key = store.get("fd-key", "");
+  if(!key || !navigator.onLine){ if(op === "unlock") $("smsg").textContent = "Connect to the internet to unlock."; return; }
+  if(op === "unlock") $("smsg").textContent = "Unlocking…";
+  try {
+    const res = await fetch(SYNC_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ key, action: "game", scores: [], skinOp: { op, who, skin: id } }) }).then(r => r.json());
+    if(res && res.points){ skinState = { points: res.points, skins: res.skins || {} }; store.set("fd-game-skins", skinState); }
+    if(op === "unlock"){ $("smsg").textContent = res.message === "unlocked" ? `🎉 ${skinName(id)} unlocked!` : res.message === "not enough points" ? "Not enough points yet." : ""; if(res.message === "unlocked") SFX.point(); }
+    renderSkinUi();
+  } catch(e){ if(op === "unlock") $("smsg").textContent = "Couldn't reach the family server — try again."; }
+}
+$("sgrid").addEventListener("click", e => { const u = e.target.closest("[data-unlock]"), q = e.target.closest("[data-equip]");
+  if(u) skinOp("unlock", u.dataset.unlock); else if(q) skinOp("equip", q.dataset.equip); });
+$("skinsBtn").addEventListener("click", () => { $("startCard").hidden = true; $("skinCard").hidden = false; $("smsg").textContent = ""; renderWho(); renderSkins(); sync(); setTimeout(() => $("skinsDone").focus({ preventScroll: true }), 50); });
+$("skinsDone").addEventListener("click", () => { $("skinCard").hidden = true; $("startCard").hidden = false; renderSkinUi(); $("play").focus({ preventScroll: true }); });
+$("who2").addEventListener("click", e => { const b = e.target.closest("[data-p]"); if(!b) return; who = b.dataset.p; store.set("fd-game-who", who); renderWho(); renderBoard(); renderSkinUi(); renderSkins(); });
+
 /* ===== Loop + controls ===== */
 let last = performance.now();
 function frame(now){
@@ -417,7 +671,9 @@ $("stage").addEventListener("touchend", () => { ty = null; dog.duck = false; }, 
 addEventListener("keydown", e => {
   const k = e.key;
   if(k === " " || k === "ArrowUp" || k === "Enter" || k === "w" || k === "W"){
-    if(document.activeElement && document.activeElement.matches("#who button, #mute, #back") && state !== "play") return;
+    const ae = document.activeElement;
+    if(ae && ae.closest && ae.closest(".card button, #bar button") && !ae.matches("#play, #again") && state !== "play") return;
+    if(!$("skinCard").hidden) return;
     e.preventDefault();
     if(state === "play") jump(); else start();
   } else if(k === "ArrowDown" || k === "s" || k === "S"){ e.preventDefault(); dog.duck = true; dog.holding = false; }

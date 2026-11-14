@@ -489,19 +489,28 @@ function handleLogOp(b) {
     const key = "log-" + b.date, props = PropertiesService.getScriptProperties();
     const arr = JSON.parse(props.getProperty(key) || "[]");
     let out = arr;
+    const earned = readEarned();          // Sheepdog Run points (counts old logs the first time)
+    let ptsChanged = false;
     if (b.op === "log") {
       const en = b.entry || {};
       if (typeof en.id !== "string" || en.id.length > 40 || LOG_TYPES.indexOf(en.type) < 0 ||
           typeof en.who !== "string" || en.who.length > 30 || typeof en.ts !== "number" ||
           !(en.end === null || typeof en.end === "number")) return json({ error: "bad entry" });
-      if (!arr.some(function (x) { return x.id === en.id; })) arr.push({ id: en.id, type: en.type, who: en.who, ts: en.ts, end: en.end });
+      if (!arr.some(function (x) { return x.id === en.id; })) {
+        arr.push({ id: en.id, type: en.type, who: en.who, ts: en.ts, end: en.end });
+        if (PET_POINTS[en.type] && GAME_PLAYERS.indexOf(en.who) >= 0) { earned[en.who] = (earned[en.who] || 0) + PET_POINTS[en.type]; ptsChanged = true; }
+      }
     } else if (b.op === "unlog") {
+      arr.forEach(function (x) {
+        if (x.id === b.id && PET_POINTS[x.type] && GAME_PLAYERS.indexOf(x.who) >= 0) { earned[x.who] = Math.max(0, (earned[x.who] || 0) - PET_POINTS[x.type]); ptsChanged = true; }
+      });
       out = arr.filter(function (x) { return x.id !== b.id; });
     } else if (b.op === "update") {
       if (typeof b.end !== "number") return json({ error: "bad end" });
       arr.forEach(function (x) { if (x.id === b.id) x.end = b.end; });
     } else return json({ error: "bad op" });
     props.setProperty(key, JSON.stringify(out));
+    if (ptsChanged) props.setProperty("pts-earned", JSON.stringify(earned));
     cleanup();
     return json({ ok: true });
   } finally {
@@ -717,6 +726,28 @@ function testBriefing() {
 // ---------- Sheepdog Run: family high scores ----------
 // Keeps each person's best score. The game sends any new bests and gets the whole board back.
 const GAME_PLAYERS = ["Dad", "Mom", "Julien", "Vinny"];
+// Pet logs earn points (whoever logged it); points unlock pet skins in the game.
+const PET_POINTS = { dogfed: 1, catfed: 1, dogsout: 1, litter: 10 };
+const SKIN_COST = { sheepdog: 0, sophie: 10, sammie: 10, santi: 10, dababy: 25 };
+function readEarned() {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty("pts-earned");
+  if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+  // First time: count every pet entry still on file
+  const earned = {};
+  props.getKeys().forEach(function (k) {
+    if (k.indexOf("log-") !== 0) return;
+    let arr = [];
+    try { arr = JSON.parse(props.getProperty(k) || "[]"); } catch (e) {}
+    arr.forEach(function (x) { if (PET_POINTS[x.type] && GAME_PLAYERS.indexOf(x.who) >= 0) earned[x.who] = (earned[x.who] || 0) + PET_POINTS[x.type]; });
+  });
+  props.setProperty("pts-earned", JSON.stringify(earned));
+  return earned;
+}
+function pointsLeft(who, earned, skins) {
+  const owned = (skins[who] && skins[who].owned) || [];
+  return Math.max(0, (earned[who] || 0) - owned.reduce(function (s, id) { return s + (SKIN_COST[id] || 0); }, 0));
+}
 function handleGame(b) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -730,7 +761,23 @@ function handleGame(b) {
       if (!board[who] || score > board[who].score) { board[who] = { score: score, ts: Date.now() }; changed = true; }
     });
     if (changed) SETTINGS.setProperty("game-board", JSON.stringify(board));
-    return json({ ok: true, board: board });
+    // Skins: unlock (spends points) or pick which pet to run as
+    let skins = {};
+    try { skins = JSON.parse(SETTINGS.getProperty("game-skins") || "{}"); } catch (e) { skins = {}; }
+    const earned = readEarned();
+    let message = "";
+    const so = b.skinOp;
+    if (so && GAME_PLAYERS.indexOf(so.who) >= 0 && SKIN_COST.hasOwnProperty(so.skin)) {
+      const mine = skins[so.who] || (skins[so.who] = { owned: [], equipped: "sheepdog" });
+      if (so.op === "unlock" && mine.owned.indexOf(so.skin) < 0 && SKIN_COST[so.skin] > 0) {
+        if (pointsLeft(so.who, earned, skins) >= SKIN_COST[so.skin]) { mine.owned.push(so.skin); mine.equipped = so.skin; message = "unlocked"; }
+        else message = "not enough points";
+      } else if (so.op === "equip" && (so.skin === "sheepdog" || mine.owned.indexOf(so.skin) >= 0)) { mine.equipped = so.skin; message = "equipped"; }
+      SETTINGS.setProperty("game-skins", JSON.stringify(skins));
+    }
+    const points = {};
+    GAME_PLAYERS.forEach(function (p) { points[p] = pointsLeft(p, earned, skins); });
+    return json({ ok: true, board: board, points: points, earned: earned, skins: skins, message: message });
   } finally {
     lock.releaseLock();
   }
