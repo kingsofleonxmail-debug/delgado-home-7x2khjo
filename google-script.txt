@@ -682,11 +682,11 @@ function writeBriefing(facts) {
   return text.slice(0, 2500);
 }
 
-function synthSpeech(text, voice) {
+function synthSpeech(text, voice, encoding) {
   const lang = voice.split("-").slice(0, 2).join("-");
   const res = UrlFetchApp.fetch("https://texttospeech.googleapis.com/v1/text:synthesize?key=" + encodeURIComponent(GOOGLE_TTS_KEY), {
     method: "post", contentType: "application/json", muteHttpExceptions: true,
-    payload: JSON.stringify({ input: { text: text }, voice: { languageCode: lang, name: voice }, audioConfig: { audioEncoding: "MP3" } })
+    payload: JSON.stringify({ input: { text: text }, voice: { languageCode: lang, name: voice }, audioConfig: { audioEncoding: encoding || "MP3" } })
   });
   const code = res.getResponseCode();
   if (code !== 200) {
@@ -851,4 +851,150 @@ function buildRecap(date) {
     '<div style="font-size:11px;color:#9ca3af;text-align:center;margin-top:6px">\u2014 Delgado Family Dashboard</div></div>';
   const plain = text.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   return { text: text, html: html, plain: plain, subject: subject };
+}
+
+
+// ---------- 6 AM morning briefing to Telegram (voice message) ----------
+// Same briefing as the robot button, made by the script itself: weather, Mom's work, today's calendar,
+// bins, shopping, countdown, then the Napoleon quote of the day. Claude writes it, the Google voice reads it.
+// Set up once: run setupMorningBriefing. Try it any time: run testMorningBriefing.
+const HOME = { name: "Pittston", lat: 41.3259, lon: -75.7894 };
+const BIN_DAYS = { 1: "Cardboard", 2: "Plastics and Garbage" };   // Mon, Tue (morning pickups)
+const MORNING_VOICE = (SETTINGS.getProperty("MORNING_VOICE") || DEFAULT_VOICE).trim();
+const MORNING_QUOTES = [
+  "Victory belongs to the most persevering.",
+  "A leader is a dealer in hope.",
+  "Impossible is a word to be found only in the dictionary of fools.",
+  "Take time to deliberate, but when the time for action has arrived, stop thinking and go in.",
+  "Never interrupt your enemy when he is making a mistake.",
+  "Courage isn't having the strength to go on; it is going on when you don't have strength.",
+  "Ability is nothing without opportunity.",
+  "Imagination rules the world.",
+  "Glory is fleeting, but obscurity is forever.",
+  "He who fears being conquered is sure of defeat.",
+  "There are only two forces in the world, the sword and the spirit. In the long run the sword will always be conquered by the spirit.",
+  "Nothing is more difficult, and therefore more precious, than to be able to decide.",
+  "Great ambition is the passion of a great character.",
+  "The best cure for the body is a quiet mind.",
+  "You must not fight too often with one enemy, or you will teach him all your art of war.",
+  "Let France have good mothers, and she will have good sons.",
+  "One must change one's tactics every ten years if one wishes to maintain one's superiority.",
+  "Riches do not consist in the possession of treasures, but in the use made of them.",
+  "Ten people who speak make more noise than ten thousand who are silent.",
+  "The torment of precautions often exceeds the dangers to be avoided.",
+  "If you want a thing done well, do it yourself.",
+  "Water, air, and cleanness are the chief articles in my pharmacy.",
+  "There is only one step from the sublime to the ridiculous.",
+  "Public instruction should be the first object of government.",
+  "Death is nothing, but to live defeated and inglorious is to die daily.",
+  "To do all that one is able to do is to be a man; to do all that one would like to do is to be a god.",
+  "Soldiers usually win the battles and generals get the credit for them.",
+  "If they want peace, nations should avoid the pin-pricks that precede cannon shots.",
+  "He who knows how to flatter also knows how to slander."
+];
+
+
+function setupMorningBriefing() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "morningBriefing") ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("morningBriefing").timeBased().atHour(6).nearMinute(0).everyDays(1).inTimezone(Session.getScriptTimeZone()).create();
+  Logger.log("Morning briefing is on: about 6:00 AM every day, voice " + MORNING_VOICE + ". Telegram " + (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID ? "is set up." : "is NOT set up."));
+}
+function stopMorningBriefing() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "morningBriefing") ScriptApp.deleteTrigger(t); });
+  Logger.log("Morning briefing is off.");
+}
+function testMorningBriefing() { morningBriefing(); }
+
+function morningBriefing() {
+  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) { Logger.log("Telegram isn't set up (TELEGRAM_TOKEN / TELEGRAM_CHAT_ID)."); return; }
+  const parts = morningParts();
+  const fallback = parts.join(" ");
+  let text = fallback, writer = "template";
+  if (ANTHROPIC_API_KEY) {
+    try {
+      const facts = parts.map(function (p, i) { return (i + 1) + ". " + p; }).join("\n") +
+        "\nSay these in exactly this order. It's the morning, so open with good morning. Do NOT mention the boys, school, naps or pets.";
+      text = writeBriefing(facts); writer = "claude";
+    } catch (err) { Logger.log("Claude problem (using the plain version): " + err.message); }
+  }
+  const caption = "\u2600\uFE0F <b>Morning briefing</b>\n" + text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let sent = false;
+  if (GOOGLE_TTS_KEY) {
+    try {
+      const ogg = synthSpeech(text, MORNING_VOICE, "OGG_OPUS");
+      const blob = Utilities.newBlob(Utilities.base64Decode(ogg), "audio/ogg", "briefing.ogg");
+      const res = UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendVoice", {
+        method: "post", muteHttpExceptions: true,
+        payload: { chat_id: String(TELEGRAM_CHAT_ID), voice: blob, caption: caption.slice(0, 1000), parse_mode: "HTML" }
+      });
+      const out = JSON.parse(res.getContentText() || "{}");
+      if (out.ok) sent = true; else Logger.log("Telegram voice problem: " + (out.description || res.getResponseCode()));
+    } catch (err) { Logger.log("Voice problem: " + err.message); }
+  } else Logger.log("GOOGLE_TTS_KEY isn't set, so sending text only.");
+  if (!sent) {
+    const r = telegram("sendMessage", { chat_id: TELEGRAM_CHAT_ID, text: caption, parse_mode: "HTML" });
+    Logger.log("Sent as text instead: " + (r.ok ? "ok" : r.why));
+  } else Logger.log("Morning briefing sent as a voice message (" + writer + " wrote it).");
+}
+
+function wxWords(code) {
+  if (code === 0) return "clear";
+  if (code <= 2) return "partly cloudy";
+  if (code === 3) return "overcast";
+  if (code <= 48) return "foggy";
+  if (code <= 57) return "drizzly";
+  if (code <= 67) return "rainy";
+  if (code <= 77) return "snowy";
+  if (code <= 82) return "showery";
+  if (code <= 86) return "snowy";
+  return "stormy";
+}
+function sayHm(hm) { const h = Number(hm.slice(0, 2)), m = Number(hm.slice(3)); return (h % 12 || 12) + (m ? ":" + (m < 10 ? "0" : "") + m : ""); }
+
+/** The briefing, one sentence per line, in the same order as the dashboard's robot button. */
+function morningParts() {
+  const tz = Session.getScriptTimeZone(), now = new Date();
+  const today = Utilities.formatDate(now, tz, "yyyy-MM-dd");
+  const P = ["Good morning, Delgado family."];
+  // Weather
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + HOME.lat + "&longitude=" + HOME.lon +
+      "&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+      "&temperature_unit=fahrenheit&timezone=auto&forecast_days=1";
+    const w = JSON.parse(UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText());
+    let s = "It's " + Math.round(w.current.temperature_2m) + " degrees and " + wxWords(w.current.weather_code) +
+      ", with a high of " + Math.round(w.daily.temperature_2m_max[0]) + " and a low of " + Math.round(w.daily.temperature_2m_min[0]) + ".";
+    const rain = w.daily.precipitation_probability_max[0];
+    if (rain >= 50) s += " There's a " + rain + "% chance of rain or snow.";
+    P.push(s);
+  } catch (e) {}
+  // Mom
+  const sh = readShifts().filter(function (x) { return x.date === today; }).sort(function (a, b) { return a.start.localeCompare(b.start); });
+  P.push(sh.length ? "Mom has work today from " + sayHm(sh[0].start) + " to " + sayHm(sh[0].end) + " at " + sh[0].loc + "." : "Mom is off today.");
+  // Calendar (today)
+  try {
+    const ev = getEvents().filter(function (e) {
+      return e.allDay ? e.start <= today && today < e.end : Utilities.formatDate(new Date(e.start), tz, "yyyy-MM-dd") === today;
+    }).sort(function (a, b) { return (a.allDay ? 0 : a.start) - (b.allDay ? 0 : b.start); });
+    P.push(ev.length ? "On the calendar today: " + ev.map(function (e) {
+      return e.title.trim() + (e.allDay ? "" : " at " + Utilities.formatDate(new Date(e.start), tz, "h:mm a").replace(":00 ", " "));
+    }).join(", and ") + "." : "Nothing on the calendar today.");
+  } catch (e) {}
+  // Bins: pickup this morning, or out tonight
+  const dow = Number(Utilities.formatDate(now, tz, "u")) % 7;      // 1 = Monday ... 0 = Sunday
+  if (BIN_DAYS[dow]) P.push(BIN_DAYS[dow] + (/ and /.test(BIN_DAYS[dow]) ? " get" : " gets") + " picked up this morning.");
+  else if (BIN_DAYS[(dow + 1) % 7]) P.push(BIN_DAYS[(dow + 1) % 7] + (/ and /.test(BIN_DAYS[(dow + 1) % 7]) ? " go" : " goes") + " out tonight.");
+  // Shopping (only if something's on it)
+  const left = readShop().filter(function (i) { return !i.done; }).length;
+  if (left) P.push("There " + (left === 1 ? "is 1 thing" : "are " + left + " things") + " on the shopping list.");
+  // Nearest countdown
+  const cd = readCountdowns()[0];
+  if (cd) {
+    const days = Math.round((new Date(cd.date + "T12:00:00") - new Date(today + "T12:00:00")) / 864e5);
+    P.push(days === 0 ? "Today is " + cd.name + "!" : "And " + days + " day" + (days === 1 ? "" : "s") + " until " + cd.name + ".");
+  }
+  // Napoleon quote of the day (same one the dashboard shows)
+  const doy = Number(Utilities.formatDate(now, tz, "D")), yr = Number(Utilities.formatDate(now, tz, "yyyy"));
+  P.push("Here's today's Napoleon quote: \u201C" + MORNING_QUOTES[(doy + yr * 7) % MORNING_QUOTES.length] + "\u201D");
+  return P;
 }
