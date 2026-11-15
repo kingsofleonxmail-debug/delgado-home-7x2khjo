@@ -298,10 +298,18 @@ function update(dt){
   obs = obs.filter(o => o.x + o.w > -20 && o.y < GROUND + 200);
 
   // mystery blocks: float above the sidewalk; bump one from below for a prize
+  // Only in a clear stretch: nothing just before it, and room after it to jump, bump it and land.
   nextBlock -= v * dt;
   if(nextBlock <= 0){
-    blocks.push({ x: W + 30, y: GROUND - 104, w: 24, h: 24, hit: false, bump: 0 });
-    nextBlock = 1500 + Math.random() * 1400;
+    const bx = W + 30;
+    const lastRight = obs.reduce((m, o) => o.knock ? m : Math.max(m, o.x + o.w), -1e9);
+    const before = 150 + speed * .25;                 // clear road before the block
+    const after = speed * .95 + 170;                  // clear road after it (time in the air + landing)
+    if(lastRight < bx - before){
+      blocks.push({ x: bx, y: GROUND - 104, w: 24, h: 24, hit: false, bump: 0 });
+      nextGap = Math.max(nextGap, after + 40);        // hold back the next obstacle
+      nextBlock = 1500 + Math.random() * 1400;
+    }                                                 // otherwise try again next frame
   }
   const head = dogBox();
   blocks.forEach(b => {
