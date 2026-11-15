@@ -475,7 +475,7 @@ html.tv .foot{margin-top:.6rem;padding-top:.5rem}
   .backbar{display:flex;align-items:center;margin:-.2rem 0 .2rem;padding:.3rem 0 .7rem;border-bottom:1px solid var(--line)}
   .page-anim{animation:secin .25s ease}
   body:not(.solo) .wrap{padding-bottom:96px}
-  body:not(.solo) .mini{display:block}
+  body:not(.solo) .slimbar{display:block}
   body:not(.solo) .dock{display:block}
   body:not(.solo){overflow-anchor:none}
   .top .bname{width:min-content;line-height:1.1}
@@ -512,11 +512,11 @@ html.tv .foot{margin-top:.6rem;padding-top:.5rem}
 .tile.warn .big{color:var(--warm)}
 /* Phone: slim top bar once you scroll, and a dock of sections along the bottom */
 @keyframes secin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.mini,.dock{display:none;position:fixed;left:0;right:0;z-index:20;background:rgba(8,13,27,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-.mini{top:0;border-bottom:1px solid var(--line);box-shadow:0 10px 24px rgba(0,0,0,.4);padding:max(8px,env(safe-area-inset-top)) 16px 8px;
+.slimbar,.dock{display:none;position:fixed;left:0;right:0;z-index:20;background:rgba(8,13,27,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.slimbar{top:0;border-bottom:1px solid var(--line);box-shadow:0 10px 24px rgba(0,0,0,.4);padding:max(8px,env(safe-area-inset-top)) 16px 8px;
   transform:translateY(-110%);transition:transform .25s ease;visibility:hidden}
-body.scrolled .mini{transform:none;visibility:visible}
-.mini .in{max-width:540px;margin:0 auto}
+body.scrolled .slimbar{transform:none;visibility:visible}
+.slimbar .in{max-width:540px;margin:0 auto}
 .mrow{display:flex;align-items:center;gap:8px}
 .mrow .logo{width:28px;height:28px;border-radius:8px}.mrow .logo svg{width:16px;height:16px}
 .mrow .mnm{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;flex:1}
@@ -551,9 +551,9 @@ body.scrolled .mini{transform:none;visibility:visible}
 .dock button span{font-size:19px;line-height:1.1;filter:grayscale(.6);opacity:.8}
 .dock button.on{color:var(--accent);background:rgba(var(--accent-rgb),.1)}
 .dock button.on span{filter:none;opacity:1}
-@media(min-width:700px){ .mini,.dock{display:none !important} }
+@media(min-width:700px){ .slimbar,.dock{display:none !important} }
 /* Boys' personal pages (?kid=…) */
-.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext,.solo .mini,.solo .dock,.solo .ai{display:none !important}
+.solo .navcol,.solo .tiles,.solo .backbar,.solo .upnext,.solo .slimbar,.solo .dock,.solo .ai{display:none !important}
 @media(min-width:700px){ .aicap{bottom:24px !important} }
 .solo .shell{display:block}
 .solo .stage{display:flex !important}
@@ -610,12 +610,12 @@ body.scrolled .mini{transform:none;visibility:visible}
       <div class="kpi" data-go="weather" role="button" tabindex="0" aria-label="Open weather"><div class="kl">Right now</div><div class="kv"><span id="kNow">—</span><span class="tag acc" id="kCond"></span></div></div>
       <div class="kpi" data-go="mom" role="button" tabindex="0" aria-label="Open Mom's schedule"><div class="kl">Mom today</div><div class="kv"><span id="kMom">—</span><span class="tag" id="kMomTag"></span></div></div>
       <div class="kpi"><div class="kl">Bins</div><div class="kv"><span id="kBins">—</span><span class="tag" id="kBinsTag"></span></div></div>
-      <div class="kpi" data-go="countdown" role="button" tabindex="0" aria-label="Open countdowns"><div class="kl" id="kCdLabel">Countdown</div><div class="kv"><span id="kCd">—</span><span class="tag cool" id="kCdTag"></span></div></div>
+      <div class="kpi" data-go="countdown" role="button" tabindex="0" aria-label="Open countdowns"><div class="kl" id="kCdLabel">Countdown</div><div class="kv"><span id="kCd">—</span><span class="tag acc" id="kCdTag"></span></div></div>
     </div>
     <div class="datechip"><span id="calIc"></span><div><b id="clock">—</b><span id="dateTxt"></span></div></div>
   </header>
 
-  <div class="mini" id="mini" aria-hidden="true"><div class="in">
+  <div class="slimbar" id="mini" aria-hidden="true"><div class="in">
     <div class="mrow"><div class="logo" id="mLogo"></div><div class="mnm" id="mName"></div><span class="live" id="mLive"><i></i>LIVE</span><div class="mck" id="mClock"></div><button type="button" class="ai" id="aiMini" aria-label="Read today's briefing" tabindex="-1"></button></div>
     <div class="mchips"><div data-go="weather"><small>Now</small><b id="mNow">—</b></div><div data-go="mom"><small>Mom</small><b id="mMom">—</b></div><div><small>Bins</small><b id="mBins">—</b></div><div data-go="countdown"><small id="mCdL">Countdown</small><b id="mCd">—</b></div></div>
     <button type="button" class="mq" id="mq" tabindex="-1"><span id="mqt"></span><i>›</i></button>
@@ -782,7 +782,7 @@ body.scrolled .mini{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.18</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.19</span></footer>
 </div>
 
 <script>
@@ -943,8 +943,8 @@ function renderDay(){
   // Bins KPI + table
   const nb = nextBins(now), b0 = nb[0];
   const tag = $("kBinsTag");
-  if(b0 && b0.d === 0){ $("kBins").textContent = "Today"; tag.textContent = b0.items; tag.className = "tag warm"; }
-  else if(b0 && b0.d === 1){ $("kBins").textContent = "Tonight"; tag.textContent = b0.items; tag.className = "tag warm"; }
+  if(b0 && b0.d === 0){ $("kBins").textContent = "Today"; tag.textContent = b0.items; tag.className = "tag acc"; }
+  else if(b0 && b0.d === 1){ $("kBins").textContent = "Tonight"; tag.textContent = b0.items; tag.className = "tag acc"; }
   else if(b0){ $("kBins").textContent = DAYS[b0.day]; tag.textContent = b0.items; tag.className = "tag acc"; }
   if($("binRows")) $("binRows").innerHTML = CONFIG.bins.slice().sort((a,b)=>a.day-b.day).map(b => {
     const m = nb.find(x => x.day===b.day);
@@ -1304,7 +1304,7 @@ function renderMom(){ navSoon();
   $("momTag").textContent = tag; $("momTag").className = "tag " + tagCls;
   $("kMom").textContent = todays.length ? `${hmShort(todays[0].start)}–${hmShort(todays[0].end)}` : (last ? v : "Off");
   $("kMomTag").textContent = last ? tag : (todays.length ? todays[0].loc : "");
-  $("kMomTag").className = "tag " + (last ? tagCls : "acc");
+  $("kMomTag").className = "tag acc";
   $("kMomTag").hidden = !$("kMomTag").textContent;
 
   // Upcoming list
