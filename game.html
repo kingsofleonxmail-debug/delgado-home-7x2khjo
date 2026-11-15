@@ -63,6 +63,19 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .smsg{font-size:12px;color:var(--warm);min-height:1em;margin:-4px 0 8px}
 .tip{display:none;font-size:11px;color:var(--acc);margin-top:6px;font-weight:700}
 .tall .tip{display:block}
+#ov{overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* short screens (phone held sideways, TV): compact cards so Play is always visible */
+@media (max-height:540px){
+  #ov{place-items:start center;padding:8px 16px}
+  .card{padding:10px 12px}
+  .card .sub,.card .how,.tip{display:none !important}
+  .card h1{font-size:18px}
+  .who{margin-bottom:8px}.who button{padding:6px 2px}
+  .board{grid-template-columns:1fr 1fr;margin-bottom:8px}.board div{padding:5px 8px}
+  .bh{margin-bottom:4px}
+  .go,.alt{padding:10px}
+  .big{font-size:30px}
+}
 .tall #ov{place-items:start center;padding-top:6vh}
 </style>
 </head>
