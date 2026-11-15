@@ -86,7 +86,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <button type="button" id="mute" aria-label="Sound on">🔊</button>
     <button type="button" id="back">‹ Dashboard</button>
   </div>
-  <div id="pv" style="margin:0 14px 8px;padding:7px 12px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fcd38d;font-size:12px;font-weight:600">👀 Preview: mystery blocks · scores here don't count</div>
+  <div id="pv" hidden style="margin:0 14px 8px;padding:7px 12px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fcd38d;font-size:12px;font-weight:600">👀 Preview: mystery blocks · scores here don't count</div>
   <div id="off">📡 You're offline. Play while you wait; the dashboard comes back by itself when the internet does.</div>
   <div id="stage">
     <canvas id="cv"></canvas>
@@ -126,10 +126,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 <script>
 /* ===== Settings shared with the dashboard ===== */
 const PREVIEW = /game-preview/.test(location.pathname);   // the preview page doesn't save scores
+if(PREVIEW) document.addEventListener("DOMContentLoaded", () => { const b = document.getElementById("pv"); if(b) b.hidden = false; });
 const SYNC_URL = "https://script.google.com/macros/s/AKfycby118t5CTyEQ6ycZvP72iZ0ashKqUJBekYhaJO0GrWB-53WgSK0Gj4n6MSppyMe3fGs3Q/exec";
 const DASH = "family-dashboard.html";
 const PEOPLE = ["Dad", "Mom", "Julien", "Vinny"];
 const $ = id => document.getElementById(id);
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const store = {
   get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
@@ -374,6 +376,7 @@ function crash(){
 }
 function start(){
   if(state === "play") return;
+  runSkin = skin();
   reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; $("skinCard").hidden = true; SFX.woof();
   try { AC && AC.resume && AC.resume(); } catch(e){}
 }
@@ -544,8 +547,9 @@ function drawObstacle(o, k){
 }
 /* Old English Sheepdog: grey back and rear, white head, chest and legs, shaggy fringe over the eyes, black nose */
 function fluff(x, y, r, col){ cx.fillStyle = col; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
+let runSkin = null;
 function drawDog(d, k){
-  const id = skin();
+  const id = state === "start" || !runSkin ? skin() : runSkin;
   if(id === "sheepdog" || !SKIN_DRAW[id]) return drawSheepdog(d, k);
   const ducking = d.duck && d.onGround, x = d.x, base = d.y, ph = d.onGround ? d.run : 0.6;
   const bob = d.onGround ? Math.abs(Math.sin(ph)) * 1.6 : 0;
@@ -606,7 +610,8 @@ const SKINS = [
   { id: "sophie",   name: "Sophie",   desc: "Fluffy grey cat · pink collar", cost: 10 },
   { id: "sammie",   name: "Sammie",   desc: "Sheepadoodle · space buns", cost: 10 },
   { id: "santi",    name: "Santi",    desc: "Big grey tabby", cost: 10 },
-  { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 }
+  { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 },
+  { id: "sebastian", name: "Sebastian", desc: "Shark Baby · top score only", cost: -1, crown: true }
 ];
 
 function skinLeg(lx, top, len, a, p, col, paw, w){
@@ -743,12 +748,67 @@ function drawDaBaby(p){
   cx.fillStyle = "#e88aa0"; cx.beginPath(); cx.moveTo(hx + 9.4, hy + 3); cx.lineTo(hx + 11.4, hy + 3); cx.lineTo(hx + 10.4, hy + 4.6); cx.fill();
   whiskers(hx + 9.5, hy + 5);
 }
-const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby };
+/* Sebastian: toddler in a blue shark onesie (hood with white teeth, dorsal fin, tail fin, navy socks) */
+function drawSebastian(p){
+  const k = p.k, B1 = mix("#1ea5dc", "#14678e", k * .5), B2 = mix("#168ec0", "#10577a", k * .5), Wt = mix("#f8fafc", "#c7cede", k * .5),
+    Sk = mix("#f2c7a5", "#b99b86", k * .45), Hr = mix("#7a4a2a", "#4e321f", k * .3), Sock = mix("#2f3e66", "#232d4a", k * .3);
+  const sw = a => p.ground ? Math.sin(p.ph + a) : (a ? -.5 : .6);
+  // legs + socks (back leg first)
+  const leg = (lx, a, col) => { const s = sw(a) * 5;
+    cx.fillStyle = col; rr(lx + s - 3.5, -13, 7, 10, 3.5); cx.fill();
+    cx.fillStyle = Sock; cx.beginPath(); cx.ellipse(lx + s + 1, -2.2, 4.6, 2.6, 0, 0, 7); cx.fill(); };
+  leg(-3, Math.PI, B2);
+  // shark tail fin on the back
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(-9, -16); cx.lineTo(-19, -23); cx.lineTo(-16, -15); cx.lineTo(-19, -8); cx.closePath(); cx.fill();
+  // back arm
+  cx.save(); cx.translate(-1, -25); cx.rotate(-sw(0) * .6); cx.fillStyle = B2; rr(-2.6, 0, 5.2, 11, 2.6); cx.fill(); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.5, 2.4, 0, 7); cx.fill(); cx.restore();
+  // body: round blue onesie + white belly
+  cx.fillStyle = B1; cx.beginPath(); cx.ellipse(0, -20, 10, 11.5, 0, 0, 7); cx.fill();
+  cx.fillStyle = Wt; cx.beginPath(); cx.ellipse(3.6, -19, 5, 8.5, 0, 0, 7); cx.fill();
+  // little dorsal fin
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(-8, -26); cx.lineTo(-12, -33); cx.lineTo(-4, -29); cx.closePath(); cx.fill();
+  leg(3, 0, B1);
+  // head in the shark hood
+  const hx = 3, hy = -38 + (p.ground ? Math.abs(Math.sin(p.ph)) * -.8 : -1);
+  cx.fillStyle = B1; cx.beginPath(); cx.ellipse(hx - 1, hy - 2.5, 13, 15, 0, 0, 7); cx.fill();     // hood
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(hx - 12, hy - 2); cx.lineTo(hx - 17, hy + 3); cx.lineTo(hx - 11, hy + 5); cx.fill();
+  cx.fillStyle = mix("#0f6f99", "#0b4a68", k * .5); cx.beginPath(); cx.ellipse(hx + 3, hy + .5, 10, 10.8, 0, 0, 7); cx.fill();   // hood opening
+  cx.fillStyle = Sk; cx.beginPath(); cx.ellipse(hx + 3, hy + 2, 8.6, 9, 0, 0, 7); cx.fill();      // face
+  // curly hair peeking out under the hood
+  cx.fillStyle = Hr; [[-3.5, -4.5, 3], [0, -5.6, 3], [3.6, -5.4, 2.8], [6.8, -4, 2.2], [-5.5, -1.8, 2.3]].forEach(([dx, dy, r]) => { cx.beginPath(); cx.arc(hx + dx, hy + dy, r, 0, 7); cx.fill(); });
+  // the hood's white shark teeth along the front edge
+  cx.fillStyle = Wt; cx.strokeStyle = "rgba(0,0,0,.12)"; cx.lineWidth = .5;
+  // teeth hang down from the top of the hood opening, over his hair
+  cx.beginPath(); cx.moveTo(hx - 6.5, hy - 7.6);
+  for(let i = 0; i < 6; i++){ const x0 = hx - 6.5 + i * 3.1, y0 = hy - 8.6 + Math.abs(i - 2.5) * .55; cx.lineTo(x0 + 1.55, y0 + 4.6); cx.lineTo(x0 + 3.1, y0 + .3); }
+  cx.lineTo(hx + 12, hy - 9.4); cx.quadraticCurveTo(hx + 3, hy - 12.2, hx - 6.5, hy - 9.6); cx.closePath(); cx.fill(); cx.stroke();
+  // big brown eyes + serious little brow
+  const eye = (ex, ey) => { cx.fillStyle = "#fff"; cx.beginPath(); cx.ellipse(ex, ey, 1.9, 2.2, 0, 0, 7); cx.fill();
+    cx.fillStyle = "#4a2a14"; cx.beginPath(); cx.arc(ex + .4, ey + .2, 1.45, 0, 7); cx.fill();
+    cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ex - .1, ey - .5, .5, 0, 7); cx.fill(); };
+  eye(hx + 2.4, hy + 1); eye(hx + 7.6, hy + .9);
+  cx.strokeStyle = Hr; cx.lineWidth = .9; cx.lineCap = "round";
+  cx.beginPath(); cx.moveTo(hx + .8, hy - 1.7); cx.quadraticCurveTo(hx + 2.4, hy - 2.2, hx + 3.9, hy - 1.4); cx.moveTo(hx + 9.2, hy - 1.8); cx.quadraticCurveTo(hx + 7.6, hy - 2.3, hx + 6.3, hy - 1.4); cx.stroke();
+  // nose + pout + rosy cheek
+  cx.fillStyle = "rgba(190,120,95,.75)"; cx.beginPath(); cx.arc(hx + 6.6, hy + 4.3, .9, 0, 7); cx.fill();
+  cx.fillStyle = "rgba(244,114,128,.28)"; cx.beginPath(); cx.arc(hx + .5, hy + 5, 2.2, 0, 7); cx.fill();
+  cx.strokeStyle = "#a25a4a"; cx.lineWidth = .9; cx.beginPath(); cx.moveTo(hx + 4.6, hy + 7.4); cx.quadraticCurveTo(hx + 6.4, hy + 6.6, hx + 8, hy + 7.4); cx.stroke();
+  // front arm swinging
+  cx.save(); cx.translate(4, -25); cx.rotate(sw(Math.PI) * .7); cx.fillStyle = B1; rr(-2.8, 0, 5.6, 11, 2.8); cx.fill(); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.6, 2.5, 0, 7); cx.fill(); cx.restore();
+}
+const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby, sebastian: drawSebastian };
 
 /* ===== Skins: points, unlocks, which pet runs ===== */
 let skinState = store.get("fd-game-skins", { points: {}, skins: {} });
 let localEquip = store.get("fd-game-equip", {});
-const owned = p => ["sheepdog"].concat((skinState.skins[p] && skinState.skins[p].owned) || []);
+/* Sebastian belongs to whoever has the family's top score, and moves when someone beats it */
+function champion(){
+  let top = null;
+  PEOPLE.forEach(p => { const s = best(p), ts = (board[p] && board[p].ts) || 0;
+    if(s > 0 && (!top || s > top.s || (s === top.s && ts && ts < top.ts))) top = { p, s, ts: ts || Infinity }; });
+  return top;
+}
+const owned = p => { const c = champion(); return ["sheepdog"].concat((skinState.skins[p] && skinState.skins[p].owned) || [], c && c.p === p ? ["sebastian"] : []); };
 function skin(){ const e = (skinState.skins[who] && skinState.skins[who].equipped) || localEquip[who] || "sheepdog"; return owned(who).includes(e) ? e : "sheepdog"; }
 const skinName = id => (SKINS.find(x => x.id === id) || SKINS[0]).name;
 const pts = () => (skinState.points && skinState.points[who]) || 0;
@@ -775,14 +835,19 @@ function previewScene(c, id){
 function renderSkins(){
   const mine = owned(who), eq = skin(), p = pts();
   $("sgrid").innerHTML = SKINS.map(sk => {
-    const has = mine.includes(sk.id), can = p >= sk.cost, wide = sk.id === "dababy";
+    const has = mine.includes(sk.id), can = sk.cost >= 0 && p >= sk.cost, wide = sk.id === "dababy" || sk.id === "sebastian";
     let btn;
+    if(sk.crown && !has){
+      const c = champion();
+      btn = `<button type="button" class="b-lock" disabled>👑 ${c ? `${esc(c.p)} holds it · beat ${c.s}` : "Top score unlocks him"}</button>`;
+      return `<div class="sk locked wide"><span class="lk">👑</span><canvas data-prev="${sk.id}" width="680" height="148"></canvas><div class="n">${sk.name} 👑</div><div class="d">${sk.desc}</div>${btn}</div>`;
+    }
     if(sk.id === eq) btn = `<button type="button" class="b-eq" disabled>✓ Running</button>`;
     else if(has) btn = `<button type="button" class="b-use" data-equip="${sk.id}">Use</button>`;
     else if(can) btn = `<button type="button" class="b-buy" data-unlock="${sk.id}">Unlock · ${sk.cost} pts</button>`;
     else btn = `<div class="sbar"><i style="width:${Math.round(p / sk.cost * 100)}%"></i></div><button type="button" class="b-lock" disabled>🔒 ${p} of ${sk.cost} pts · ${sk.cost - p} more</button>`;
     return `<div class="sk${sk.id === eq ? " eq" : ""}${!has && !can ? " locked" : ""}${wide ? " wide" : ""}">${!has && !can ? '<span class="lk">🔒</span>' : ""}
-      <canvas data-prev="${sk.id}" width="${wide ? 680 : 340}" height="148"></canvas><div class="n">${sk.name}${sk.cost === 25 ? " ⭐" : ""}</div><div class="d">${sk.desc}</div>${btn}</div>`;
+      <canvas data-prev="${sk.id}" width="${wide ? 680 : 340}" height="148"></canvas><div class="n">${sk.name}${sk.cost === 25 ? " ⭐" : ""}${sk.crown ? " 👑" : ""}</div><div class="d">${sk.desc}</div>${btn}</div>`;
   }).join("");
   $("sgrid").querySelectorAll("canvas[data-prev]").forEach(c => previewScene(c, c.dataset.prev));
 }

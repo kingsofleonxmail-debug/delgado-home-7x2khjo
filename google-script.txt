@@ -744,6 +744,12 @@ function readEarned() {
   props.setProperty("pts-earned", JSON.stringify(earned));
   return earned;
 }
+// Sebastian's skin belongs to whoever holds the family's top score
+function gameChampion(board) {
+  let top = null;
+  GAME_PLAYERS.forEach(function (p) { const e = board[p]; if (e && e.score > 0 && (!top || e.score > top.score || (e.score === top.score && e.ts < top.ts))) top = { p: p, score: e.score, ts: e.ts }; });
+  return top ? top.p : "";
+}
 function pointsLeft(who, earned, skins) {
   const owned = (skins[who] && skins[who].owned) || [];
   return Math.max(0, (earned[who] || 0) - owned.reduce(function (s, id) { return s + (SKIN_COST[id] || 0); }, 0));
@@ -767,12 +773,12 @@ function handleGame(b) {
     const earned = readEarned();
     let message = "";
     const so = b.skinOp;
-    if (so && GAME_PLAYERS.indexOf(so.who) >= 0 && SKIN_COST.hasOwnProperty(so.skin)) {
+    if (so && GAME_PLAYERS.indexOf(so.who) >= 0 && (SKIN_COST.hasOwnProperty(so.skin) || so.skin === "sebastian")) {
       const mine = skins[so.who] || (skins[so.who] = { owned: [], equipped: "sheepdog" });
       if (so.op === "unlock" && mine.owned.indexOf(so.skin) < 0 && SKIN_COST[so.skin] > 0) {
         if (pointsLeft(so.who, earned, skins) >= SKIN_COST[so.skin]) { mine.owned.push(so.skin); mine.equipped = so.skin; message = "unlocked"; }
         else message = "not enough points";
-      } else if (so.op === "equip" && (so.skin === "sheepdog" || mine.owned.indexOf(so.skin) >= 0)) { mine.equipped = so.skin; message = "equipped"; }
+      } else if (so.op === "equip" && (so.skin === "sheepdog" || mine.owned.indexOf(so.skin) >= 0 || (so.skin === "sebastian" && gameChampion(board) === so.who))) { mine.equipped = so.skin; message = "equipped"; }
       SETTINGS.setProperty("game-skins", JSON.stringify(skins));
     }
     const points = {};

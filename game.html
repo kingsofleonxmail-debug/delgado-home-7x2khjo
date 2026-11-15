@@ -86,6 +86,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
     <button type="button" id="mute" aria-label="Sound on">🔊</button>
     <button type="button" id="back">‹ Dashboard</button>
   </div>
+  <div id="pv" hidden style="margin:0 14px 8px;padding:7px 12px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fcd38d;font-size:12px;font-weight:600">👀 Preview: mystery blocks · scores here don't count</div>
   <div id="off">📡 You're offline. Play while you wait; the dashboard comes back by itself when the internet does.</div>
   <div id="stage">
     <canvas id="cv"></canvas>
@@ -124,10 +125,13 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
 <script>
 /* ===== Settings shared with the dashboard ===== */
+const PREVIEW = /game-preview/.test(location.pathname);   // the preview page doesn't save scores
+if(PREVIEW) document.addEventListener("DOMContentLoaded", () => { const b = document.getElementById("pv"); if(b) b.hidden = false; });
 const SYNC_URL = "https://script.google.com/macros/s/AKfycby118t5CTyEQ6ycZvP72iZ0ashKqUJBekYhaJO0GrWB-53WgSK0Gj4n6MSppyMe3fGs3Q/exec";
 const DASH = "family-dashboard.html";
 const PEOPLE = ["Dad", "Mom", "Julien", "Vinny"];
 const $ = id => document.getElementById(id);
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const store = {
   get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
@@ -176,6 +180,7 @@ async function sync(){
   } catch(e){}
 }
 function recordScore(s){
+  if(PREVIEW) return false;
   let nb = false;
   if(s > (local[who] || 0)){ local[who] = s; store.set("fd-game-best", local); }
   if(s > ((board[who] && board[who].score) || 0) && s > 0){ if(s >= best(who)) nb = true; pending[who] = Math.max(pending[who] || 0, s); store.set("fd-game-pending", pending); }
@@ -197,7 +202,12 @@ function beep(f, d = .08, type = "square", vol = .05, slide = 0){
     o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d);
   } catch(e){}
 }
-const SFX = { jump: () => beep(520, .12, "square", .045, 1.6), point: () => { beep(880, .07); setTimeout(() => beep(1320, .09), 80); },
+const SFX2 = {
+  bonk: () => { beep(180, .06, "square", .06, 1.8); setTimeout(() => beep(660, .07, "square", .04), 60); },
+  power: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .09, "square", .045), i * 70)),
+  shatter: () => { beep(900, .12, "sawtooth", .05, .3); setTimeout(() => beep(1400, .08, "triangle", .04, .5), 60); }
+};
+const SFX = { ...SFX2, jump: () => beep(520, .12, "square", .045, 1.6), point: () => { beep(880, .07); setTimeout(() => beep(1320, .09), 80); },
   crash: () => { beep(220, .25, "sawtooth", .06, .4); setTimeout(() => beep(110, .3, "square", .05, .5), 120); }, woof: () => { beep(330, .09, "sawtooth", .05, .6); setTimeout(() => beep(300, .12, "sawtooth", .05, .55), 140); } };
 
 /* ===== Game ===== */
@@ -218,8 +228,12 @@ addEventListener("resize", resize);
 
 const G = 2000, JUMP = -640, HOLD_G = 0.55;   // gravity, jump speed, lighter gravity while holding jump
 let state = "start", t = 0, speed, score, dist, obs, birds, clouds, nextGap, night, nightT, flash, lastPoint, shake, dog;
+// Mystery blocks + power-ups
+let blocks, nextBlock, pops, parts, slowT, slowMul, shield, invuln, banner;
+const SLOW_TIME = 5, SLOW_SPEED = .6;
 function reset(){
   speed = 270; score = 0; dist = 0; obs = []; nextGap = 380; night = 0; nightT = 0; flash = 0; lastPoint = 0; shake = 0;
+  blocks = []; nextBlock = 1600; pops = []; parts = []; slowT = 0; slowMul = 1; shield = false; invuln = 0; banner = null;
   dog = { x: 46, y: GROUND, vy: 0, duck: false, onGround: true, run: 0, holding: false };
 }
 reset();
@@ -257,8 +271,12 @@ function update(dt){
   t += dt;
   clouds.forEach(c => { c.x -= dt * 14 * c.s; if(c.x < -60) { c.x = W + Math.random() * 100; c.y = 30 + Math.random() * 60; } });
   if(state !== "play") { dog.run += dt * 4; return; }
-  speed = Math.min(720, speed + dt * 7.5);
-  dist += speed * dt;
+  if(slowT <= 0) speed = Math.min(720, speed + dt * 7.5);
+  slowT = Math.max(0, slowT - dt);
+  slowMul += ((slowT > 0 ? SLOW_SPEED : 1) - slowMul) * Math.min(1, dt * 4);   // ease in and out of slow-mo
+  invuln = Math.max(0, invuln - dt);
+  const v = speed * slowMul;               // how fast the world moves right now
+  dist += v * dt;
   score = Math.floor(dist / 26);
   if(score - lastPoint >= 100){ lastPoint = score - (score % 100); flash = 1; SFX.point(); }
   flash = Math.max(0, flash - dt * 1.6);
@@ -270,20 +288,80 @@ function update(dt){
   const g = dog.vy < 0 && dog.holding ? G * HOLD_G : G * (dog.duck && !dog.onGround ? 2.2 : 1);
   dog.vy += g * dt; dog.y += dog.vy * dt;
   if(dog.y >= GROUND){ dog.y = GROUND; dog.vy = 0; dog.onGround = true; }
-  dog.run += dt * speed / 22;
+  dog.run += dt * v / 22;
 
   // obstacles
-  nextGap -= speed * dt;
+  nextGap -= v * dt;
   if(nextGap <= 0) spawn();
-  obs.forEach(o => { o.x -= speed * dt * (o.k === "bird" ? 1.12 : 1); if(o.k === "bird") o.f += dt * 10; });
-  obs = obs.filter(o => o.x + o.w > -20);
+  obs.forEach(o => {
+    if(o.knock){ o.x += o.kvx * dt; o.y += o.kvy * dt; o.kvy += 1400 * dt; o.rot += o.kspin * dt; return; }
+    o.x -= v * dt * (o.k === "bird" ? 1.12 : 1); if(o.k === "bird") o.f += dt * 10;
+  });
+  obs = obs.filter(o => o.x + o.w > -20 && o.y < GROUND + 200);
+
+  // mystery blocks: float above the sidewalk; bump one from below for a prize
+  // Only in a clear stretch: nothing just before it, and room after it to jump, bump it and land.
+  nextBlock -= v * dt;
+  if(nextBlock <= 0){
+    const bx = W + 30;
+    const lastRight = obs.reduce((m, o) => o.knock ? m : Math.max(m, o.x + o.w), -1e9);
+    const before = 150 + speed * .25;                 // clear road before the block
+    const after = speed * .95 + 170;                  // clear road after it (time in the air + landing)
+    if(lastRight < bx - before){
+      blocks.push({ x: bx, y: GROUND - 104, w: 24, h: 24, hit: false, bump: 0 });
+      nextGap = Math.max(nextGap, after + 40);        // hold back the next obstacle
+      nextBlock = 1500 + Math.random() * 1400;
+    }                                                 // otherwise try again next frame
+  }
+  const head = dogBox();
+  blocks.forEach(b => {
+    b.x -= v * dt; b.bump = Math.max(0, b.bump - dt * 4);
+    const under = head.x + head.w > b.x + 2 && head.x < b.x + b.w - 2;
+    if(!b.hit && dog.vy < 0 && under && head.y <= b.y + b.h && head.y >= b.y - 6){   // rising into it (forgiving for little hands)
+      b.hit = true; b.bump = 1; dog.vy = 120; dog.holding = false; dog.y = b.y + b.h + 34 + 1;
+      SFX.bonk(); givePrize(b);
+    }
+  });
+  blocks = blocks.filter(b => b.x + b.w > -30);
+
+  // prizes popping out, then flying to the pet
+  pops.forEach(p => {
+    p.t += dt;
+    if(p.t < .35){ p.x -= v * dt; p.y -= 70 * dt; }
+    else { const k = Math.min(1, (p.t - .35) / .3); p.x += (dog.x - p.x) * k; p.y += (dog.y - 24 - p.y) * k; }
+    if(p.t >= .65 && !p.done){ p.done = true; applyPrize(p.kind); }
+  });
+  pops = pops.filter(p => !p.done);
+  parts.forEach(q => { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 600 * dt; q.life -= dt; });
+  parts = parts.filter(q => q.life > 0);
+  if(banner){ banner.t -= dt; if(banner.t <= 0) banner = null; }
 
   // hits (forgiving boxes)
   const db = dogBox();
-  for(const o of obs){
+  if(invuln <= 0) for(const o of obs){
+    if(o.knock) continue;
     const ox = o.x + 3, oy = o.y + 3, ow = o.w - 6, oh = o.h - 4;
-    if(db.x < ox + ow && db.x + db.w > ox && db.y < oy + oh && db.y + db.h > oy){ crash(); break; }
+    if(db.x < ox + ow && db.x + db.w > ox && db.y < oy + oh && db.y + db.h > oy){
+      if(shield){ breakShield(o); break; }
+      crash(); break;
+    }
   }
+}
+function givePrize(b){
+  const kind = Math.random() < .5 ? "carrot" : "stromboli";
+  pops.push({ kind, x: b.x + b.w / 2, y: b.y - 6, t: 0, done: false });
+}
+function applyPrize(kind){
+  if(kind === "carrot"){ slowT = SLOW_TIME; banner = { text: "🥕 SLOW-MO!", t: 1.6, col: "#fb923c" }; }
+  else { shield = true; banner = { text: "✨ POWER GLOW!", t: 1.6, col: "#fbbf24" }; }
+  SFX.power();
+}
+function breakShield(o){
+  shield = false; invuln = 1.1; shake = .3; SFX.shatter();
+  o.knock = true; o.kvx = 260; o.kvy = -420; o.kspin = 9; o.rot = 0;
+  for(let i = 0; i < 18; i++){ const a = Math.random() * Math.PI * 2, sp = 90 + Math.random() * 160;
+    parts.push({ x: dog.x + 2, y: dog.y - 20, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, life: .6 + Math.random() * .3, c: i % 3 ? "#fbbf24" : "#fff7c2" }); }
+  banner = { text: "Saved by the stromboli!", t: 1.4, col: "#fbbf24" };
 }
 function dogBox(){
   return dog.duck && dog.onGround ? { x: dog.x - 22, y: dog.y - 20, w: 46, h: 19 } : { x: dog.x - 18, y: dog.y - 34, w: 38, h: 32 };
@@ -298,6 +376,7 @@ function crash(){
 }
 function start(){
   if(state === "play") return;
+  runSkin = skin();
   reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; $("skinCard").hidden = true; SFX.woof();
   try { AC && AC.resume && AC.resume(); } catch(e){}
 }
@@ -347,9 +426,25 @@ function draw(){
   for(let x = -off2; x < W + 60; x += 60) cx.fillRect(x, GROUND + 1, 2, 13);
   cx.fillStyle = mix("#8a919e", "#252c44", k); cx.fillRect(-10, GROUND + 17, W + 20, bot - GROUND);
   // obstacles
-  obs.forEach(o => drawObstacle(o, k));
-  // dog
-  drawDog(dog, k);
+  obs.forEach(o => { if(o.knock){ cx.save(); cx.translate(o.x + o.w / 2, o.y + o.h / 2); cx.rotate(o.rot); cx.translate(-(o.x + o.w / 2), -(o.y + o.h / 2)); drawObstacle(o, k); cx.restore(); } else drawObstacle(o, k); });
+  blocks.forEach(b => drawBlock(b, k));
+  pops.forEach(p => drawPrize(p.kind, p.x, p.y, 1));
+  // power glow behind the pet
+  if(shield){
+    const pulse = .75 + .25 * Math.sin(t * 8), gx = dog.x + 2, gy = dog.y - 20;
+    const gr = cx.createRadialGradient(gx, gy, 6, gx, gy, 40);
+    gr.addColorStop(0, `rgba(255,236,140,${.85 * pulse})`); gr.addColorStop(.55, `rgba(251,191,36,${.5 * pulse})`); gr.addColorStop(1, "rgba(251,191,36,0)");
+    cx.fillStyle = gr; cx.beginPath(); cx.arc(gx, gy, 40, 0, 7); cx.fill();
+    cx.strokeStyle = `rgba(253,224,71,${.55 + .35 * Math.sin(t * 10)})`; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(gx, gy, 30, 26, 0, 0, 7); cx.stroke();
+  }
+  // pet (blinks for a moment after the glow saves you)
+  if(!(invuln > 0 && Math.floor(t * 16) % 2)) drawDog(dog, k);
+  if(shield){ // sparkles orbiting the pet
+    for(let i = 0; i < 5; i++){ const a = t * 3 + i * 1.26, r = 26 + Math.sin(t * 5 + i) * 3;
+      sparkle(dog.x + 2 + Math.cos(a) * r, dog.y - 20 + Math.sin(a) * r * .8, 2.2 + Math.sin(t * 9 + i), "#fde68a"); }
+  }
+  parts.forEach(q => { cx.globalAlpha = Math.min(1, q.life * 2); cx.fillStyle = q.c; cx.save(); cx.translate(q.x, q.y); cx.rotate(q.life * 9); cx.fillRect(-2, -1, 4, 2.4); cx.restore(); });
+  cx.globalAlpha = 1;
   // HUD
   cx.font = "800 12px Inter,system-ui,sans-serif"; cx.textAlign = "right"; cx.textBaseline = "top";
   const col = k > .5 ? "#e8eefc" : "#253049";
@@ -357,6 +452,62 @@ function draw(){
   const hy = top + 22;   // the top of the screen (tall phones have extra sky above the road)
   cx.fillText(String(score).padStart(5, "0"), W - 10, hy);
   cx.globalAlpha = .6; cx.fillStyle = col; cx.fillText(`HI ${String(best(who)).padStart(5, "0")}  ·  ${who}`, W - 62, hy); cx.globalAlpha = 1;
+  // power-up status (top left)
+  let sxp = 10;
+  if(slowT > 0){
+    drawPrize("carrot", sxp + 8, hy + 7, .75);
+    cx.fillStyle = "rgba(0,0,0,.18)"; rr(sxp + 20, hy + 3, 44, 7, 3.5); cx.fill();
+    cx.fillStyle = "#fb923c"; rr(sxp + 20, hy + 3, 44 * slowT / SLOW_TIME, 7, 3.5); cx.fill();
+    sxp += 74;
+  }
+  if(shield){ drawPrize("stromboli", sxp + 10, hy + 7, .7); sparkle(sxp + 20, hy + 1, 2.4 + Math.sin(t * 8), "#fbbf24"); }
+  if(banner){
+    const a = Math.min(1, banner.t * 2.5), yb = GROUND - 150 - (1.6 - banner.t) * 10;
+    cx.globalAlpha = a; cx.font = "900 15px Inter,system-ui,sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.lineWidth = 4; cx.lineJoin = "round"; cx.strokeStyle = k > .5 ? "#0b1020" : "#ffffff"; cx.strokeText(banner.text, W / 2, yb);
+    cx.fillStyle = banner.col; cx.fillText(banner.text, W / 2, yb); cx.globalAlpha = 1;
+  }
+}
+function sparkle(x, y, r, col){
+  cx.fillStyle = col; cx.beginPath();
+  cx.moveTo(x, y - r * 2); cx.quadraticCurveTo(x, y, x + r * 2, y); cx.quadraticCurveTo(x, y, x, y + r * 2); cx.quadraticCurveTo(x, y, x - r * 2, y); cx.quadraticCurveTo(x, y, x, y - r * 2); cx.fill();
+}
+/* Mystery block: our own design — a glowing cyan crate with a paw print */
+function drawBlock(b, k){
+  const y = b.y - Math.sin(b.bump * Math.PI) * 7, x = b.x, s = b.w;
+  if(!b.hit){
+    cx.save(); cx.shadowColor = "rgba(34,211,238,.8)"; cx.shadowBlur = 10 + Math.sin(t * 4) * 4;
+    const g = cx.createLinearGradient(0, y, 0, y + s); g.addColorStop(0, "#67e8f9"); g.addColorStop(1, "#0e7490");
+    cx.fillStyle = g; rr(x, y, s, s, 5); cx.fill(); cx.restore();
+    cx.strokeStyle = "rgba(255,255,255,.75)"; cx.lineWidth = 1.4; rr(x + 1.5, y + 1.5, s - 3, s - 3, 4); cx.stroke();
+    cx.fillStyle = "rgba(255,255,255,.35)"; rr(x + 3, y + 3, s - 6, 4, 2); cx.fill();
+  } else {
+    cx.fillStyle = mix("#475569", "#334155", k); rr(x, y, s, s, 5); cx.fill();
+    cx.strokeStyle = "rgba(255,255,255,.18)"; cx.lineWidth = 1.2; rr(x + 1.5, y + 1.5, s - 3, s - 3, 4); cx.stroke();
+  }
+  // paw print
+  cx.fillStyle = b.hit ? "rgba(255,255,255,.25)" : "#ffffff";
+  const px = x + s / 2, py = y + s / 2 + 2;
+  cx.beginPath(); cx.ellipse(px, py + 2, 4.6, 3.8, 0, 0, 7); cx.fill();
+  [[-5, -3], [-1.8, -6], [1.8, -6], [5, -3]].forEach(([dx, dy]) => { cx.beginPath(); cx.arc(px + dx, py + dy, 1.7, 0, 7); cx.fill(); });
+  if(!b.hit){ sparkle(x + s - 2, y + 1 + Math.sin(t * 6) * 1.5, 1.6 + Math.sin(t * 7) * .6, "#ffffff"); }
+}
+/* Prizes, drawn in the game's cartoon style */
+function drawPrize(kind, x, y, sc){
+  cx.save(); cx.translate(x, y); cx.scale(sc, sc); cx.rotate(kind === "carrot" ? -.6 : -.15);
+  if(kind === "carrot"){
+    cx.fillStyle = "#4ade80";
+    [[-2, -2], [0, -4], [2, -2]].forEach(([dx, r]) => { cx.beginPath(); cx.ellipse(dx * 1.6, -9 + r * .3, 1.8, 4.5, dx * .25, 0, 7); cx.fill(); });
+    cx.fillStyle = "#f97316"; cx.beginPath(); cx.moveTo(-4.5, -6); cx.quadraticCurveTo(0, -8, 4.5, -6); cx.lineTo(.6, 10); cx.lineTo(-.6, 10); cx.closePath(); cx.fill();
+    cx.strokeStyle = "#c2410c"; cx.lineWidth = .8; [[-2.5, -2, 1.5, -1.5], [-1.6, 2, 1.2, 2.4], [-1, 5.5, .8, 5.8]].forEach(([a, b2, c, d]) => { cx.beginPath(); cx.moveTo(a, b2); cx.lineTo(c, d); cx.stroke(); });
+  } else {
+    cx.fillStyle = "#d4a15a"; rr(-11, -5, 22, 10, 5); cx.fill();
+    cx.fillStyle = "#b9803e"; rr(-11, 1, 22, 4, 2); cx.fill();
+    cx.fillStyle = "#e0b46e"; rr(-10, -5, 20, 4, 2); cx.fill();
+    [-6, -1, 4].forEach(dx => { cx.fillStyle = "#dc2626"; cx.beginPath(); cx.ellipse(dx, -1, 1.6, 2.6, .5, 0, 7); cx.fill(); cx.fillStyle = "#fff7ed"; cx.beginPath(); cx.ellipse(dx + 1.4, -1.6, .8, 1.7, .5, 0, 7); cx.fill(); });
+    cx.fillStyle = "#166534"; [[-8, -3], [-3, -4], [2, -3], [7, -4], [9, -2]].forEach(([a, b2]) => cx.fillRect(a, b2, .9, .9));
+  }
+  cx.restore();
 }
 function house(x, y, w, h){ cx.fillRect(x, y, w, h); cx.beginPath(); cx.moveTo(x - 4, y); cx.lineTo(x + w / 2, y - h * .55); cx.lineTo(x + w + 4, y); cx.fill(); }
 function tree(x, y, r){ cx.fillRect(x - 1.5, y, 3, 18); cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
@@ -396,8 +547,9 @@ function drawObstacle(o, k){
 }
 /* Old English Sheepdog: grey back and rear, white head, chest and legs, shaggy fringe over the eyes, black nose */
 function fluff(x, y, r, col){ cx.fillStyle = col; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); }
+let runSkin = null;
 function drawDog(d, k){
-  const id = skin();
+  const id = state === "start" || !runSkin ? skin() : runSkin;
   if(id === "sheepdog" || !SKIN_DRAW[id]) return drawSheepdog(d, k);
   const ducking = d.duck && d.onGround, x = d.x, base = d.y, ph = d.onGround ? d.run : 0.6;
   const bob = d.onGround ? Math.abs(Math.sin(ph)) * 1.6 : 0;
@@ -458,7 +610,8 @@ const SKINS = [
   { id: "sophie",   name: "Sophie",   desc: "Fluffy grey cat · pink collar", cost: 10 },
   { id: "sammie",   name: "Sammie",   desc: "Sheepadoodle · space buns", cost: 10 },
   { id: "santi",    name: "Santi",    desc: "Big grey tabby", cost: 10 },
-  { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 }
+  { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 },
+  { id: "sebastian", name: "Sebastian", desc: "Shark Baby · top score only", cost: -1, crown: true }
 ];
 
 function skinLeg(lx, top, len, a, p, col, paw, w){
@@ -595,12 +748,67 @@ function drawDaBaby(p){
   cx.fillStyle = "#e88aa0"; cx.beginPath(); cx.moveTo(hx + 9.4, hy + 3); cx.lineTo(hx + 11.4, hy + 3); cx.lineTo(hx + 10.4, hy + 4.6); cx.fill();
   whiskers(hx + 9.5, hy + 5);
 }
-const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby };
+/* Sebastian: toddler in a blue shark onesie (hood with white teeth, dorsal fin, tail fin, navy socks) */
+function drawSebastian(p){
+  const k = p.k, B1 = mix("#1ea5dc", "#14678e", k * .5), B2 = mix("#168ec0", "#10577a", k * .5), Wt = mix("#f8fafc", "#c7cede", k * .5),
+    Sk = mix("#f2c7a5", "#b99b86", k * .45), Hr = mix("#7a4a2a", "#4e321f", k * .3), Sock = mix("#2f3e66", "#232d4a", k * .3);
+  const sw = a => p.ground ? Math.sin(p.ph + a) : (a ? -.5 : .6);
+  // legs + socks (back leg first)
+  const leg = (lx, a, col) => { const s = sw(a) * 5;
+    cx.fillStyle = col; rr(lx + s - 3.5, -13, 7, 10, 3.5); cx.fill();
+    cx.fillStyle = Sock; cx.beginPath(); cx.ellipse(lx + s + 1, -2.2, 4.6, 2.6, 0, 0, 7); cx.fill(); };
+  leg(-3, Math.PI, B2);
+  // shark tail fin on the back
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(-9, -16); cx.lineTo(-19, -23); cx.lineTo(-16, -15); cx.lineTo(-19, -8); cx.closePath(); cx.fill();
+  // back arm
+  cx.save(); cx.translate(-1, -25); cx.rotate(-sw(0) * .6); cx.fillStyle = B2; rr(-2.6, 0, 5.2, 11, 2.6); cx.fill(); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.5, 2.4, 0, 7); cx.fill(); cx.restore();
+  // body: round blue onesie + white belly
+  cx.fillStyle = B1; cx.beginPath(); cx.ellipse(0, -20, 10, 11.5, 0, 0, 7); cx.fill();
+  cx.fillStyle = Wt; cx.beginPath(); cx.ellipse(3.6, -19, 5, 8.5, 0, 0, 7); cx.fill();
+  // little dorsal fin
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(-8, -26); cx.lineTo(-12, -33); cx.lineTo(-4, -29); cx.closePath(); cx.fill();
+  leg(3, 0, B1);
+  // head in the shark hood
+  const hx = 3, hy = -38 + (p.ground ? Math.abs(Math.sin(p.ph)) * -.8 : -1);
+  cx.fillStyle = B1; cx.beginPath(); cx.ellipse(hx - 1, hy - 2.5, 13, 15, 0, 0, 7); cx.fill();     // hood
+  cx.fillStyle = B2; cx.beginPath(); cx.moveTo(hx - 12, hy - 2); cx.lineTo(hx - 17, hy + 3); cx.lineTo(hx - 11, hy + 5); cx.fill();
+  cx.fillStyle = mix("#0f6f99", "#0b4a68", k * .5); cx.beginPath(); cx.ellipse(hx + 3, hy + .5, 10, 10.8, 0, 0, 7); cx.fill();   // hood opening
+  cx.fillStyle = Sk; cx.beginPath(); cx.ellipse(hx + 3, hy + 2, 8.6, 9, 0, 0, 7); cx.fill();      // face
+  // curly hair peeking out under the hood
+  cx.fillStyle = Hr; [[-3.5, -4.5, 3], [0, -5.6, 3], [3.6, -5.4, 2.8], [6.8, -4, 2.2], [-5.5, -1.8, 2.3]].forEach(([dx, dy, r]) => { cx.beginPath(); cx.arc(hx + dx, hy + dy, r, 0, 7); cx.fill(); });
+  // the hood's white shark teeth along the front edge
+  cx.fillStyle = Wt; cx.strokeStyle = "rgba(0,0,0,.12)"; cx.lineWidth = .5;
+  // teeth hang down from the top of the hood opening, over his hair
+  cx.beginPath(); cx.moveTo(hx - 6.5, hy - 7.6);
+  for(let i = 0; i < 6; i++){ const x0 = hx - 6.5 + i * 3.1, y0 = hy - 8.6 + Math.abs(i - 2.5) * .55; cx.lineTo(x0 + 1.55, y0 + 4.6); cx.lineTo(x0 + 3.1, y0 + .3); }
+  cx.lineTo(hx + 12, hy - 9.4); cx.quadraticCurveTo(hx + 3, hy - 12.2, hx - 6.5, hy - 9.6); cx.closePath(); cx.fill(); cx.stroke();
+  // big brown eyes + serious little brow
+  const eye = (ex, ey) => { cx.fillStyle = "#fff"; cx.beginPath(); cx.ellipse(ex, ey, 1.9, 2.2, 0, 0, 7); cx.fill();
+    cx.fillStyle = "#4a2a14"; cx.beginPath(); cx.arc(ex + .4, ey + .2, 1.45, 0, 7); cx.fill();
+    cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ex - .1, ey - .5, .5, 0, 7); cx.fill(); };
+  eye(hx + 2.4, hy + 1); eye(hx + 7.6, hy + .9);
+  cx.strokeStyle = Hr; cx.lineWidth = .9; cx.lineCap = "round";
+  cx.beginPath(); cx.moveTo(hx + .8, hy - 1.7); cx.quadraticCurveTo(hx + 2.4, hy - 2.2, hx + 3.9, hy - 1.4); cx.moveTo(hx + 9.2, hy - 1.8); cx.quadraticCurveTo(hx + 7.6, hy - 2.3, hx + 6.3, hy - 1.4); cx.stroke();
+  // nose + pout + rosy cheek
+  cx.fillStyle = "rgba(190,120,95,.75)"; cx.beginPath(); cx.arc(hx + 6.6, hy + 4.3, .9, 0, 7); cx.fill();
+  cx.fillStyle = "rgba(244,114,128,.28)"; cx.beginPath(); cx.arc(hx + .5, hy + 5, 2.2, 0, 7); cx.fill();
+  cx.strokeStyle = "#a25a4a"; cx.lineWidth = .9; cx.beginPath(); cx.moveTo(hx + 4.6, hy + 7.4); cx.quadraticCurveTo(hx + 6.4, hy + 6.6, hx + 8, hy + 7.4); cx.stroke();
+  // front arm swinging
+  cx.save(); cx.translate(4, -25); cx.rotate(sw(Math.PI) * .7); cx.fillStyle = B1; rr(-2.8, 0, 5.6, 11, 2.8); cx.fill(); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.6, 2.5, 0, 7); cx.fill(); cx.restore();
+}
+const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby, sebastian: drawSebastian };
 
 /* ===== Skins: points, unlocks, which pet runs ===== */
 let skinState = store.get("fd-game-skins", { points: {}, skins: {} });
 let localEquip = store.get("fd-game-equip", {});
-const owned = p => ["sheepdog"].concat((skinState.skins[p] && skinState.skins[p].owned) || []);
+/* Sebastian belongs to whoever has the family's top score, and moves when someone beats it */
+function champion(){
+  let top = null;
+  PEOPLE.forEach(p => { const s = best(p), ts = (board[p] && board[p].ts) || 0;
+    if(s > 0 && (!top || s > top.s || (s === top.s && ts && ts < top.ts))) top = { p, s, ts: ts || Infinity }; });
+  return top;
+}
+const owned = p => { const c = champion(); return ["sheepdog"].concat((skinState.skins[p] && skinState.skins[p].owned) || [], c && c.p === p ? ["sebastian"] : []); };
 function skin(){ const e = (skinState.skins[who] && skinState.skins[who].equipped) || localEquip[who] || "sheepdog"; return owned(who).includes(e) ? e : "sheepdog"; }
 const skinName = id => (SKINS.find(x => x.id === id) || SKINS[0]).name;
 const pts = () => (skinState.points && skinState.points[who]) || 0;
@@ -627,14 +835,19 @@ function previewScene(c, id){
 function renderSkins(){
   const mine = owned(who), eq = skin(), p = pts();
   $("sgrid").innerHTML = SKINS.map(sk => {
-    const has = mine.includes(sk.id), can = p >= sk.cost, wide = sk.id === "dababy";
+    const has = mine.includes(sk.id), can = sk.cost >= 0 && p >= sk.cost, wide = sk.id === "dababy" || sk.id === "sebastian";
     let btn;
+    if(sk.crown && !has){
+      const c = champion();
+      btn = `<button type="button" class="b-lock" disabled>👑 ${c ? `${esc(c.p)} holds it · beat ${c.s}` : "Top score unlocks him"}</button>`;
+      return `<div class="sk locked wide"><span class="lk">👑</span><canvas data-prev="${sk.id}" width="680" height="148"></canvas><div class="n">${sk.name} 👑</div><div class="d">${sk.desc}</div>${btn}</div>`;
+    }
     if(sk.id === eq) btn = `<button type="button" class="b-eq" disabled>✓ Running</button>`;
     else if(has) btn = `<button type="button" class="b-use" data-equip="${sk.id}">Use</button>`;
     else if(can) btn = `<button type="button" class="b-buy" data-unlock="${sk.id}">Unlock · ${sk.cost} pts</button>`;
     else btn = `<div class="sbar"><i style="width:${Math.round(p / sk.cost * 100)}%"></i></div><button type="button" class="b-lock" disabled>🔒 ${p} of ${sk.cost} pts · ${sk.cost - p} more</button>`;
     return `<div class="sk${sk.id === eq ? " eq" : ""}${!has && !can ? " locked" : ""}${wide ? " wide" : ""}">${!has && !can ? '<span class="lk">🔒</span>' : ""}
-      <canvas data-prev="${sk.id}" width="${wide ? 680 : 340}" height="148"></canvas><div class="n">${sk.name}${sk.cost === 25 ? " ⭐" : ""}</div><div class="d">${sk.desc}</div>${btn}</div>`;
+      <canvas data-prev="${sk.id}" width="${wide ? 680 : 340}" height="148"></canvas><div class="n">${sk.name}${sk.cost === 25 ? " ⭐" : ""}${sk.crown ? " 👑" : ""}</div><div class="d">${sk.desc}</div>${btn}</div>`;
   }).join("");
   $("sgrid").querySelectorAll("canvas[data-prev]").forEach(c => previewScene(c, c.dataset.prev));
 }
