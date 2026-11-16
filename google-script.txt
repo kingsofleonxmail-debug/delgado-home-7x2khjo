@@ -69,7 +69,7 @@ function doPost(e) {
   if (body.action === "state") {
     const days = Math.min(Number(body.days) || 8, 31);
     return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
-                  shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns() });
+                  shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns(), grill: readGrill() });
   }
   if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
   if (body.op && String(body.op).indexOf("shift") === 0) return handleShiftOp(body);
@@ -84,6 +84,7 @@ function doPost(e) {
   if (body.action === "briefing") return handleBriefing(body);
   if (body.action === "speak") return handleSpeak(body);
   if (body.action === "game") return handleGame(body);
+  if (body.action === "grill") return handleGrill(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -232,6 +233,40 @@ function handleCheckin(b) {
   const sent = results.some(function (r) { return /email: sent|telegram: sent|: 200$/.test(r); });
   if (!sent) return json({ ok: false, message: "Couldn't send the check-in \u2014 tell Dad to check the alert settings." });
   return json({ ok: true, message: "Checked in at " + when + (place ? " \u2014 near " + place.split(",")[0] : "") });
+}
+
+// ---------- Grill: the TV sends the ThermoPro thermometer's temperatures every 30 seconds ----------
+// Kept for 6 hours in the script's short-term cache (nothing written to your settings).
+// When food is done, or the grill runs too hot or cool, everyone gets the usual alert once.
+function readGrill() {
+  const raw = CacheService.getScriptCache().get("grill");
+  return raw ? JSON.parse(raw) : null;
+}
+
+function handleGrill(b) {
+  const cache = CacheService.getScriptCache();
+  if (b.clear) { cache.remove("grill"); return json({ ok: true }); }
+  const g = b.grill;
+  if (!g || typeof g !== "object" || !Array.isArray(g.probes)) return json({ error: "bad input" });
+  const num = function (v) { return typeof v === "number" && isFinite(v) ? Math.round(v) : null; };
+  const str = function (v, n) { return typeof v === "string" ? v.slice(0, n) : ""; };
+  const clean = {
+    ts: Date.now(), unit: g.unit === "C" ? "C" : "F", battery: num(g.battery), start: num(g.start),
+    connected: g.connected === true,
+    probes: g.probes.slice(0, 2).map(function (p) {
+      p = p || {};
+      return { name: str(p.name, 30), temp: num(p.temp), target: num(p.target), range: p.range === true,
+               lo: num(p.lo), hi: num(p.hi), doneAt: str(p.doneAt, 12), alarm: str(p.alarm, 80), progress: num(p.progress) };
+    })
+  };
+  cache.put("grill", JSON.stringify(clean), 21600);
+  // One alert per message per half hour, so a flapping temperature can't spam phones
+  const alert = typeof b.alert === "string" ? b.alert.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+  if (alert) {
+    const k = "grill-alert-" + Utilities.base64EncodeWebSafe(alert).slice(0, 200);
+    if (!cache.get(k)) { cache.put(k, "1", 1800); sendAlert(alert); }
+  }
+  return json({ ok: true });
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
