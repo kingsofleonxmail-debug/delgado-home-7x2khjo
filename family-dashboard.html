@@ -238,6 +238,14 @@ body:not(.solo) .dock ~ .aicap,body:not(.solo) .dock ~ #ciSheet{bottom:calc(84px
 .row .t{flex:1;min-width:0;font-weight:600;font-size:.88rem}
 .row .tm{color:var(--muted);font-size:.78rem;font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);font-size:.82rem;padding:.4rem 0}
+.door{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.7rem}
+.door .dv{background:var(--panel2);border:1px solid var(--line2);border-radius:var(--inner);overflow:hidden}
+.door .dv.new{border-color:var(--warm)}
+.door .dimg{aspect-ratio:16/10;background:var(--panel) center/cover no-repeat;display:grid;place-items:center;font-size:1.6rem;color:var(--muted)}
+.door .dimg.has{font-size:0}
+.door .dt{padding:.5rem .65rem}
+.door .dk{font-size:.8rem;font-weight:700}
+.door .dw{font-size:.68rem;color:var(--muted);margin-top:.15rem}
 
 /* Checklist */
 .kids{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.9rem}
@@ -778,6 +786,13 @@ body.scrolled .slimbar{transform:none;visibility:visible}
       </div>
       <div class="wxnow"><span id="wxIc"></span><span class="t" id="wxTemp">—</span><span class="d" id="wxDesc">Loading forecast…</span></div>
       <svg class="chart" id="chart" viewBox="0 0 720 185"></svg>
+    </section>
+      </div>
+      <div class="view" data-view="door">
+    <section class="panel">
+      <div class="ph"><div><div class="pt">Front door</div><div class="ps" id="doorSub">Who came by — photos from the doorbell</div></div><span class="tag acc" id="doorTag" hidden></span></div>
+      <div class="door" id="doorList"><div class="empty">No visitors yet. Rings and people spotted by the doorbell show up here.</div></div>
+      <div class="note" id="doorNote">Clips save to the <b>Doorbell</b> folder in Google Drive. Photos open full size when you tap them.</div>
     </section>
       </div>
       <div class="view" data-view="countdown">
@@ -1745,6 +1760,50 @@ async function pullState(){
     setSync(true);
   }catch(e){ setSync(false); }
 }
+// Front door: My TV Home sends each ring (and each person the doorbell spots) to the family server
+var VISITORS = store.get("fd-visitors") || [];
+const DOOR_IMG = {};
+function doorWhen(ts){
+  const d = new Date(ts), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  const day = ymd(d) === ymd(now) ? "" : ymd(d) === ymd(y) ? "yesterday " : (now - d < 6*864e5 ? DAYS[d.getDay()] + " " : `${d.getMonth()+1}/${d.getDate()} `);
+  return day + tstr(ts);
+}
+async function pullVisitors(){
+  if(!CONFIG.syncUrl) return;
+  try{
+    const d = await api({ action:"doorbell", op:"list", n:24, photos:0 });
+    if(Array.isArray(d.visitors) && JSON.stringify(d.visitors) !== JSON.stringify(VISITORS)){
+      VISITORS = d.visitors; store.set("fd-visitors", VISITORS); renderDoor(); navSoon(); }
+  }catch(e){}
+}
+function renderDoor(){
+  if(!VISITORS.length) return;
+  const now = Date.now(), today = VISITORS.filter(v => ymd(new Date(v.ts)) === ymd(new Date())).length;
+  $("doorSub").textContent = today ? `${today} visitor${today > 1 ? "s" : ""} today` : "Nobody yet today";
+  const fresh = now - VISITORS[0].ts < 10*60*1000;
+  $("doorTag").hidden = !fresh; $("doorTag").textContent = "Just now";
+  const html = VISITORS.map((v, i) => `<div class="dv${i === 0 && fresh ? " new" : ""}">
+    <div class="dimg${v.file && DOOR_IMG[v.file] ? " has" : ""}" ${v.file ? `data-dimg="${esc(v.file)}"` : ""} style="${v.file && DOOR_IMG[v.file] ? `background-image:url(${DOOR_IMG[v.file]})` : ""}">${v.kind === "ring" ? "🔔" : "🚶"}</div>
+    <div class="dt"><div class="dk">${v.kind === "ring" ? "Rang the bell" : "Person at the door"}</div><div class="dw">${esc(doorWhen(v.ts))}</div></div></div>`).join("");
+  if($("doorList").dataset.html !== html){ $("doorList").innerHTML = html; $("doorList").dataset.html = html; }
+  if(current === "door") VISITORS.slice(0, 12).forEach(v => { if(v.file) loadDoorImg(v.file); });
+}
+async function loadDoorImg(file){
+  if(file in DOOR_IMG) return;
+  DOOR_IMG[file] = "";
+  try{
+    const d = await api({ action:"doorbell", op:"photo", file });
+    if(!d.img) return;
+    DOOR_IMG[file] = "data:image/jpeg;base64," + d.img;
+    document.querySelectorAll(`[data-dimg="${CSS.escape(file)}"]`).forEach(el => { el.style.backgroundImage = `url(${DOOR_IMG[file]})`; el.classList.add("has"); });
+    $("doorList").dataset.html = "";
+  }catch(e){ delete DOOR_IMG[file]; }
+}
+$("doorList").addEventListener("click", e => {
+  const el = e.target.closest("[data-dimg]");
+  if(el && DOOR_IMG[el.dataset.dimg]) window.open("https://drive.google.com/file/d/" + encodeURIComponent(el.dataset.dimg) + "/view", "_blank");
+});
+
 async function pullCalendar(){
   if(!CONFIG.syncUrl) return;
   try{
@@ -1799,6 +1858,7 @@ const SECTIONS = [
   ["pets","🐾","Pets","Pets"],
   ["shop","🛒","Shopping list","Shopping"],
   ["weather","🌤️","Weekend & weather","Weather"],
+  ["door","🚪","Front door","Door"],
   ["countdown","⭐","Countdowns","Countdown"]
 ];
 const txt = sel => { const el = document.querySelector(sel); return el ? el.textContent.trim() : ""; };
@@ -1841,6 +1901,13 @@ function summary(id){
     const ws = [sat, sun].map(d => { const w = wxDay(d); return w ? `${DAYS[d.getDay()]} ${deg(w.hi)}` : null; }).filter(Boolean).join(" · ");
     const desc = wxKind(WX.current.weather_code, WX.current.is_day)[1];
     return { line:`${deg(WX.current.temperature_2m)} ${desc}${ws ? " · " + ws : ""}`, big: deg(WX.current.temperature_2m), sub: `${desc}${ws ? " · " + ws : ""}`, cls:"" };
+  }
+  if(id === "door"){
+    const today = VISITORS.filter(v => ymd(new Date(v.ts)) === ymd(now)), last = VISITORS[0];
+    const fresh = last && now - last.ts < 10*60*1000;
+    if(!last) return { line:"No visitors yet", big:"Quiet", sub:"No visitors yet", cls:"" };
+    const lt = `${last.kind === "ring" ? "Rang" : "Person"} ${doorWhen(last.ts)}`;
+    return { line: `${today.length} today · last: ${lt}`, big: fresh ? (last.kind === "ring" ? "Ding dong!" : "Someone's there") : `${today.length} today`, sub: "Last: " + lt, cls: fresh ? "hot" : "" };
   }
   if(id === "countdown"){ const n = txt("#kCd"), t = txt("#kCdTag"); return { line: t ? `${n} to ${t}` : "Nothing set", big: n, sub: t ? "to " + t : "Add one", cls:"" }; }
   return { line:"", big:"", sub:"", cls:"" };
@@ -1888,6 +1955,7 @@ function showSection(id, opts = {}){
   $("nav").dataset.html = ""; renderNav(); renderDock();
   if(id === "weather") renderWeather();
   if(id === "pets" || id === "nap") renderLogs();
+  if(id === "door"){ renderDoor(); pullVisitors(); }
   if(!opts.keepScroll) $("stage").scrollTop = 0;
   if(isPhone() && opts.open){
     const wasViewing = document.body.classList.contains("viewing");
@@ -2152,6 +2220,7 @@ setInterval(() => {
 setInterval(loadWeather, 15*60*1000);
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderWeather(); renderLogs(); }, 200); });
 setInterval(pullState, 10000);
+setInterval(pullVisitors, 60000); setTimeout(pullVisitors, 2500);
 setInterval(pullCalendar, 10*60*1000);
 </script>
 </body>

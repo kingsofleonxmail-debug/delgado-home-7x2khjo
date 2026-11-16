@@ -11,6 +11,7 @@
 //   ALERT_EMAIL        - optional email(s) for alerts, comma-separated
 //   TELEGRAM_TOKEN     - optional, from @BotFather in Telegram
 //   TELEGRAM_CHAT_ID   - optional, run findTelegramChat to get it (comma-separate for more than one)
+// Front door: run setupDoorbell once from the editor so the script may save doorbell clips to your Google Drive.
 const SETTINGS = PropertiesService.getScriptProperties();
 const FAMILY_CODE = SETTINGS.getProperty("FAMILY_CODE") || "CHANGE-ME";
 
@@ -85,6 +86,7 @@ function doPost(e) {
   if (body.action === "speak") return handleSpeak(body);
   if (body.action === "game") return handleGame(body);
   if (body.action === "grill") return handleGrill(body);
+  if (body.action === "doorbell") return handleDoorbell(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -1085,4 +1087,142 @@ function morningParts() {
   const doy = Number(Utilities.formatDate(now, tz, "D")), yr = Number(Utilities.formatDate(now, tz, "yyyy"));
   P.push("Here's today's Napoleon quote: \u201C" + MORNING_QUOTES[(doy + yr * 7) % MORNING_QUOTES.length] + "\u201D");
   return P;
+}
+
+
+/* ───────────── Front door (Reolink doorbell via My TV Home) ─────────────
+ * My TV Home watches the doorbell. It sends:
+ *   {action:"doorbell", op:"ring",   kind:"ring"|"person", img:<base64 jpeg>}  → saved + phone alert (rings only)
+ *   {action:"doorbell", op:"upload", name, mime, size}  → a one-time Google Drive upload link for a clip
+ *   {action:"doorbell", op:"nap"}    → is a nap running? (the TV mutes the chime while it is)
+ * The dashboard asks {action:"doorbell", op:"list"} for the visitor log.
+ */
+const DOOR_FOLDER = "Doorbell";          // top folder in your Google Drive
+const KEEP_VISITORS = 60;               // newest visitors kept in the log (the photos stay in Drive)
+
+function handleDoorbell(b) {
+  if (b.op === "nap") return json({ napping: napRunning() });
+  if (b.op === "list") return json({ visitors: listVisitors(Math.min(Number(b.n) || 20, 40), b.photos == null ? 8 : Math.max(0, Math.min(Number(b.photos) || 0, 12))) });
+  if (b.op === "photo") return json({ img: visitorPhoto(String(b.file || "")) });
+  if (b.op === "upload") return json(doorUploadLink(b));
+  if (b.op === "ring") return json(doorRing(b));
+  return json({ error: "bad op" });
+}
+
+function napRunning() {
+  const tz = Session.getScriptTimeZone(), now = Date.now();
+  const days = [Utilities.formatDate(new Date(now), tz, "yyyy-MM-dd"), Utilities.formatDate(new Date(now - 864e5), tz, "yyyy-MM-dd")];
+  return days.some(function (d) {
+    return readLog(d).some(function (x) { return x.type === "nap" && !x.end && now - x.ts < 5 * 3600e3; });
+  });
+}
+
+function doorFolder(sub) {
+  let top = DriveApp.getFoldersByName(DOOR_FOLDER);
+  let f = top.hasNext() ? top.next() : DriveApp.createFolder(DOOR_FOLDER);
+  (sub || []).forEach(function (name) {
+    const it = f.getFoldersByName(name);
+    f = it.hasNext() ? it.next() : f.createFolder(name);
+  });
+  return f;
+}
+
+function doorUploadLink(b) {
+  const name = String(b.name || "clip.mp4").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
+  const mime = /^[\w.+-]+\/[\w.+-]+$/.test(String(b.mime || "")) ? b.mime : "video/mp4";
+  const tz = Session.getScriptTimeZone(), day = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  const folder = doorFolder(["Clips", day]);
+  const headers = { Authorization: "Bearer " + ScriptApp.getOAuthToken(), "X-Upload-Content-Type": mime };
+  if (Number(b.size) > 0) headers["X-Upload-Content-Length"] = String(Math.round(Number(b.size)));
+  const res = UrlFetchApp.fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id", {
+    method: "post", contentType: "application/json; charset=UTF-8", headers: headers, muteHttpExceptions: true,
+    payload: JSON.stringify({ name: name, parents: [folder.getId()] })
+  });
+  const loc = res.getHeaders()["Location"] || res.getHeaders()["location"];
+  if (res.getResponseCode() !== 200 || !loc) return { error: "drive " + res.getResponseCode() + " " + res.getContentText().slice(0, 150) };
+  return { url: loc };
+}
+
+function doorRing(b) {
+  const kind = b.kind === "person" ? "person" : "ring", now = Date.now(), tz = Session.getScriptTimeZone();
+  let file = null, blob = null;
+  if (typeof b.img === "string" && b.img.length > 100 && b.img.length < 2e6) {
+    try {
+      blob = Utilities.newBlob(Utilities.base64Decode(b.img), "image/jpeg",
+        Utilities.formatDate(new Date(now), tz, "yyyy-MM-dd HH.mm.ss") + " " + kind + ".jpg");
+      file = doorFolder(["Visitors", Utilities.formatDate(new Date(now), tz, "yyyy-MM")]).createFile(blob).getId();
+    } catch (err) { console.log("snapshot save failed: " + err); }
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const list = JSON.parse(props.getProperty("visitors") || "[]");
+    list.unshift({ ts: now, kind: kind, file: file });
+    props.setProperty("visitors", JSON.stringify(list.slice(0, KEEP_VISITORS)));
+  } finally { lock.releaseLock(); }
+  const sent = kind === "ring" ? doorAlert("Someone is at the front door (" + fmtTime(now) + ")", blob) : [];
+  return { ok: true, file: file, sent: sent };
+}
+
+function doorAlert(msg, blob) {
+  if (!blob) return sendAlert(msg);
+  const out = []; let ok = false;
+  if (NTFY_TOPIC) {
+    try {
+      const res = UrlFetchApp.fetch("https://ntfy.sh/" + encodeURIComponent(NTFY_TOPIC), {
+        method: "put", payload: blob.getBytes(), contentType: "image/jpeg", muteHttpExceptions: true,
+        headers: { Title: "Front door", Message: msg, Filename: "door.jpg", Tags: "bell", Priority: "high" } });
+      out.push("ntfy photo: " + res.getResponseCode()); ok = ok || res.getResponseCode() === 200;
+    } catch (err) { out.push("ntfy photo: " + String(err).slice(0, 80)); }
+  }
+  if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID) {
+    TELEGRAM_CHAT_ID.split(",").map(function (c) { return c.trim(); }).filter(Boolean).forEach(function (chat) {
+      try {
+        const r = UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendPhoto",
+          { method: "post", payload: { chat_id: chat, caption: msg, photo: blob }, muteHttpExceptions: true });
+        out.push("telegram photo: " + r.getResponseCode()); ok = ok || r.getResponseCode() === 200;
+      } catch (err) { out.push("telegram photo: " + String(err).slice(0, 80)); }
+    });
+  }
+  if (ALERT_EMAIL) {
+    try { MailApp.sendEmail({ to: ALERT_EMAIL, subject: msg, body: msg + "\n\n\u2014 Delgado Family Dashboard", attachments: [blob] }); out.push("email: sent"); ok = true; }
+    catch (err) { out.push("email: " + String(err).slice(0, 80)); }
+  }
+  return ok ? out : out.concat(sendAlert(msg));
+}
+
+function listVisitors(n, photos) {
+  const list = JSON.parse(PropertiesService.getScriptProperties().getProperty("visitors") || "[]").slice(0, n);
+  return list.map(function (v, i) {
+    const o = { ts: v.ts, kind: v.kind, file: v.file || null };
+    if (v.file && i < photos) o.img = visitorPhoto(v.file);
+    return o;
+  });
+}
+
+function visitorPhoto(id) {
+  if (!/^[\w-]{10,80}$/.test(id)) return null;
+  try {
+    const f = DriveApp.getFileById(id);
+    let blob = f.getBlob();
+    try {   // ask Drive for a small preview so the dashboard stays quick
+      const t = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + id + "?fields=thumbnailLink",
+        { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+      const link = JSON.parse(t.getContentText()).thumbnailLink;
+      if (link) {
+        const small = UrlFetchApp.fetch(link.replace(/=s\d+$/, "=s480"), { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+        if (small.getResponseCode() === 200) blob = small.getBlob();
+      }
+    } catch (e) {}
+    return Utilities.base64Encode(blob.getBytes());
+  } catch (err) { return null; }
+}
+
+/** Run once from the editor: approves Google Drive access and makes the Doorbell folder. */
+function setupDoorbell() {
+  const f = doorFolder(["Clips"]);
+  doorFolder(["Visitors"]);
+  Logger.log("Doorbell folder is ready: " + DriveApp.getFoldersByName(DOOR_FOLDER).next().getUrl() + "  (clips go in " + f.getName() + ")");
+  Logger.log("Nap running right now: " + napRunning());
 }
