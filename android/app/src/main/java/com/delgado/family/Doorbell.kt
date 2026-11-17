@@ -58,7 +58,9 @@ data class Clip(val id: String, val name: String, val size: Long, val ts: Long, 
 
 /** Downloads, caches, saves and deletes clips. The phone only ever talks to the family Google script. */
 object ClipStore {
-    private const val CHUNK = 6 * 1024 * 1024L           // must match CLIP_CHUNK in the Google script
+    private const val CHUNK = 2 * 1024 * 1024L           // piece size asked of the Google script (max 4 MB there)
+    /** Why the last list or download failed, shown on screen so problems can be fixed. */
+    @Volatile var lastError: String = ""
     private const val CACHE_LIMIT = 600L * 1024 * 1024    // recently watched clips kept on the phone
 
     private fun clipDir(ctx: Context) = File(ctx.cacheDir, "clips").apply { mkdirs() }
@@ -68,9 +70,9 @@ object ClipStore {
 
     fun list(ctx: Context, before: String?): Pair<List<Clip>, String?>? {
         val body = JSONObject().put("action", "doorbell").put("op", "clips").put("n", 60)
-        if (before != null) body.put("before", before)
-        val r = Api.post(ctx, body, 60000) ?: return null
-        if (r.has("error")) return null
+        if (before != null) body.put("upto", before)
+        val r = Api.post(ctx, body, 60000) ?: run { lastError = Api.lastError; return null }
+        if (r.has("error")) { lastError = r.optString("error"); return null }
         val arr = r.optJSONArray("clips") ?: JSONArray()
         val out = (0 until arr.length()).map { Clip.from(arr.getJSONObject(it)) }
         return out to (if (r.isNull("more")) null else r.optString("more"))
@@ -99,30 +101,32 @@ object ClipStore {
      * Downloads a clip in pieces (3 at a time) into the phone's cache.
      * Returns the finished file, or null on failure. [progress] gets 0..100.
      */
-    fun download(ctx: Context, c: Clip, cancel: AtomicBoolean, progress: (Int) -> Unit): File? {
+    fun download(ctx: Context, c: Clip, cancel: AtomicBoolean, progress: (Long, Long) -> Unit): File? {
         val out = cached(ctx, c)
         if (out.exists() && out.length() > 0 && (c.size <= 0 || out.length() == c.size)) { out.setLastModified(System.currentTimeMillis()); return out }
         val part = File(clipDir(ctx), c.id + ".part")
         part.delete()
         var total = c.size
         // The first piece also tells us the true size if the list didn't.
-        val first = chunk(ctx, c.id, 0) ?: return null
-        if (first.second > 0) total = first.second
+        var first: Pair<ByteArray, Long>? = null
+        for (attempt in 1..3) { first = chunk(ctx, c.id, 0); if (first != null || cancel.get()) break }
+        val head = first ?: return null
+        if (head.second > 0) total = head.second
         RandomAccessFile(part, "rw").use { raf ->
             raf.setLength(total)
-            raf.seek(0); raf.write(first.first)
-            val got = AtomicLong(first.first.size.toLong())
-            progress(pct(got.get(), total))
+            raf.seek(0); raf.write(head.first)
+            val got = AtomicLong(head.first.size.toLong())
+            progress(got.get(), total)
             val starts = generateSequence(CHUNK) { it + CHUNK }.takeWhile { it < total }.toList()
             val failed = AtomicBoolean(false)
-            val pool = Executors.newFixedThreadPool(3)
+            val pool = Executors.newFixedThreadPool(4)
             for (s in starts) pool.execute {
                 if (cancel.get() || failed.get()) return@execute
                 var piece: Pair<ByteArray, Long>? = null
                 for (attempt in 1..3) { piece = chunk(ctx, c.id, s); if (piece != null || cancel.get()) break }
                 if (piece == null) { failed.set(true); return@execute }
                 synchronized(raf) { raf.seek(s); raf.write(piece.first) }
-                progress(pct(got.addAndGet(piece.first.size.toLong()), total))
+                progress(got.addAndGet(piece.first.size.toLong()), total)
             }
             pool.shutdown()
             pool.awaitTermination(30, java.util.concurrent.TimeUnit.MINUTES)
@@ -134,13 +138,13 @@ object ClipStore {
         return out
     }
 
-    private fun pct(got: Long, total: Long) = if (total <= 0) 0 else ((got * 100) / total).toInt().coerceIn(0, 100)
-
     private fun chunk(ctx: Context, id: String, start: Long): Pair<ByteArray, Long>? {
-        val r = Api.post(ctx, JSONObject().put("action", "doorbell").put("op", "clipchunk").put("id", id).put("start", start), 90000)
-            ?: return null
-        if (r.has("error")) return null
-        return try { Base64.decode(r.optString("data", ""), Base64.DEFAULT) to r.optLong("total", 0) } catch (e: Exception) { null }
+        val r = Api.post(ctx, JSONObject().put("action", "doorbell").put("op", "clipchunk").put("id", id).put("start", start)
+            .put("len", CHUNK), 90000) ?: run { lastError = Api.lastError; return null }
+        if (r.has("error")) { lastError = r.optString("error"); return null }
+        val bytes = try { Base64.decode(r.optString("data", ""), Base64.DEFAULT) } catch (e: Exception) { lastError = "bad data"; return null }
+        if (bytes.isEmpty() && r.optLong("total", 0) > start) { lastError = "empty piece"; return null }
+        return bytes to r.optLong("total", 0)
     }
 
     private fun trimCache(ctx: Context) {
@@ -363,7 +367,7 @@ class DoorbellActivity : Activity() {
                 loading = false
                 footer.text = "Load older clips"
                 if (r == null) {
-                    status.text = "Couldn't load clips. Check your connection and the family code, then tap ↻."
+                    status.text = "Couldn't load clips (${ClipStore.lastError}). Tap ↻ to try again."
                     return@runOnUiThread
                 }
                 if (fresh) { clips.clear(); picked.clear(); refreshPick() }
@@ -557,12 +561,15 @@ class ClipActivity : Activity() {
         note.text = "Loading video… " + sizeLabel(clip.size)
         progress.visibility = View.VISIBLE
         thread {
-            val f = ClipStore.download(this, clip, cancel) { p -> runOnUiThread { progress.progress = p; note.text = "Loading video… $p%" } }
+            val f = ClipStore.download(this, clip, cancel) { got, total ->
+                val p = if (total > 0) ((got * 100) / total).toInt() else 0
+                runOnUiThread { progress.progress = p; note.text = "Loading video… ${sizeLabel(got)} of ${sizeLabel(total)}" }
+            }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 progress.visibility = View.GONE
                 if (f == null) {
-                    note.text = if (cancel.get()) "" else "Couldn't load this clip. Check your connection and open it again."
+                    note.text = if (cancel.get()) "" else "Couldn't load this clip (${ClipStore.lastError}). Open it again to retry."
                     return@runOnUiThread
                 }
                 file = f

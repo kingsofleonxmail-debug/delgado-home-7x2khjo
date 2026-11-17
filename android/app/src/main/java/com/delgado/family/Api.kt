@@ -40,9 +40,12 @@ object Prefs {
 
 /** Talks to the family's Google Apps Script. Always call off the main thread. */
 object Api {
+    /** Why the last call failed, in plain words (shown on screens that need it). */
+    @Volatile var lastError: String = ""
+
     fun post(ctx: Context, body: JSONObject, timeoutMs: Int = 25000): JSONObject? {
         val key = Prefs.key(ctx)
-        if (key.isEmpty()) return null
+        if (key.isEmpty()) { lastError = "no family code"; return null }
         body.put("key", key)
         return try {
             var conn = URL(Config.SCRIPT_URL).openConnection() as HttpURLConnection
@@ -66,11 +69,12 @@ object Api {
                 code = conn.responseCode
                 if (++hops > 5) break
             }
-            if (code !in 200..299) return null
+            if (code !in 200..299) { lastError = "server answered $code"; return null }
             val text = conn.inputStream.bufferedReader().use { it.readText() }
             conn.disconnect()
             JSONObject(text)
         } catch (e: Exception) {
+            lastError = (e.javaClass.simpleName + " " + (e.message ?: "")).trim().take(120)
             null
         }
     }

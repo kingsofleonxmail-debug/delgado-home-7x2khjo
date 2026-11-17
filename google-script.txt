@@ -1235,13 +1235,20 @@ function setupDoorbell() {
 // ---------- Front door clips for the Delgado Android app ----------
 // The phones never get Drive access. They ask this script for a clip list, small previews, the video in
 // pieces, or to delete; the script only ever touches files inside Doorbell > Clips.
-const CLIP_CHUNK = 6 * 1024 * 1024;      // bytes per piece sent to the phone
+const CLIP_CHUNK_MAX = 4 * 1024 * 1024;   // largest piece sent to the phone at once
 
 function clipsFolderId() {
   const cache = CacheService.getScriptCache();
   let id = cache.get("clips-folder");
   if (!id) { id = doorFolder(["Clips"]).getId(); cache.put("clips-folder", id, 21600); }
   return id;
+}
+
+function driveGet(path) {
+  const res = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/" + path,
+    { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error("drive " + res.getResponseCode() + " " + res.getContentText().slice(0, 150));
+  return JSON.parse(res.getContentText());
 }
 
 /** True only for a file in Doorbell > Clips > (day). Remembered for 6 hours so playback stays quick. */
@@ -1253,7 +1260,7 @@ function isDoorClip(id) {
     const clips = clipsFolderId();
     const days = DriveApp.getFileById(id).getParents();
     while (days.hasNext()) {
-      const day = days.next(), ups = day.getParents();
+      const ups = days.next().getParents();
       while (ups.hasNext()) {
         if (ups.next().getId() === clips) { cache.put("clip-ok-" + id, "1", 21600); return true; }
       }
@@ -1262,29 +1269,31 @@ function isDoorClip(id) {
   return false;
 }
 
-/** Newest clips first. Pass "before" (a yyyy-MM-dd day) to load older days. */
+/** Newest clips first, a week of days per page, in two quick Drive lookups. "upto" (yyyy-MM-dd) loads older days. */
 function listClips(b) {
-  const max = Math.min(Number(b.n) || 60, 150);
-  const before = validDate(b.before) ? b.before : "9999-12-31";
-  const days = [];
-  const it = DriveApp.getFolderById(clipsFolderId()).getFolders();
-  while (it.hasNext()) {
-    const f = it.next(), name = f.getName();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(name) && name < before) days.push({ name: name, f: f });
-  }
-  days.sort(function (x, y) { return y.name.localeCompare(x.name); });
-  const clips = []; let i = 0;
-  for (; i < days.length && clips.length < max; i++) {
-    const files = days[i].f.getFiles(), today = [];
-    while (files.hasNext()) {
-      const f = files.next();
-      if (f.isTrashed() || String(f.getMimeType()).indexOf("video/") !== 0) continue;
-      today.push({ id: f.getId(), name: f.getName(), size: f.getSize(), ts: f.getDateCreated().getTime(), day: days[i].name });
-    }
-    today.sort(function (x, y) { return y.ts - x.ts; });
-    Array.prototype.push.apply(clips, today);
-  }
-  return { clips: clips, more: i < days.length ? days[i - 1].name : null };
+  try {
+    const upto = validDate(b.upto) ? b.upto : "9999-12-31";
+    const q1 = "'" + clipsFolderId() + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+    const folders = driveGet("files?pageSize=1000&fields=files(id,name)&q=" + encodeURIComponent(q1)).files || [];
+    const days = folders.filter(function (f) { return /^\d{4}-\d{2}-\d{2}$/.test(f.name) && f.name <= upto; })
+                        .sort(function (x, y) { return y.name.localeCompare(x.name); });
+    const take = days.slice(0, 7), dayOf = {};
+    take.forEach(function (d) { dayOf[d.id] = d.name; });
+    const more = days.length > take.length ? days[take.length].name : null;
+    if (!take.length) return { clips: [], more: null };
+    const q2 = "(" + take.map(function (d) { return "'" + d.id + "' in parents"; }).join(" or ") +
+               ") and trashed = false and mimeType contains 'video/'";
+    const files = driveGet("files?pageSize=1000&orderBy=createdTime desc&fields=files(id,name,size,createdTime,parents)&q=" +
+                           encodeURIComponent(q2)).files || [];
+    const ok = {};
+    const clips = files.map(function (f) {
+      ok["clip-ok-" + f.id] = "1";
+      const day = (f.parents || []).map(function (p) { return dayOf[p]; }).filter(Boolean)[0] || "";
+      return { id: f.id, name: f.name, size: Number(f.size) || 0, ts: new Date(f.createdTime).getTime(), day: day };
+    });
+    try { if (clips.length) CacheService.getScriptCache().putAll(ok, 21600); } catch (e) {}   // playback can skip the folder check
+    return { clips: clips, more: more };
+  } catch (err) { return { error: String(err).slice(0, 200) }; }
 }
 
 /** Small preview pictures for up to 8 clips at once (Drive makes these from the video). */
@@ -1306,18 +1315,24 @@ function clipThumbs(b) {
 
 /** One piece of a clip's video, so the phone can download it without any Google sign-in. */
 function clipChunk(b) {
-  if (!isDoorClip(b.id)) return { error: "not a doorbell clip" };
-  const start = Math.max(0, Math.floor(Number(b.start) || 0));
-  const res = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + b.id + "?alt=media", {
-    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken(), Range: "bytes=" + start + "-" + (start + CLIP_CHUNK - 1) },
-    muteHttpExceptions: true });
-  const code = res.getResponseCode();
-  if (code === 416) return { start: start, data: "", total: start };
-  if (code !== 200 && code !== 206) return { error: "drive " + code };
-  const bytes = res.getBlob().getBytes();
-  const range = String(res.getHeaders()["Content-Range"] || res.getHeaders()["content-range"] || "");
-  const total = /\/(\d+)$/.test(range) ? Number(range.match(/\/(\d+)$/)[1]) : start + bytes.length;
-  return { start: start, data: Utilities.base64Encode(bytes), total: total };
+  try {
+    if (!isDoorClip(b.id)) return { error: "not a doorbell clip" };
+    const start = Math.max(0, Math.floor(Number(b.start) || 0));
+    const len = Math.max(256 * 1024, Math.min(Number(b.len) || 2 * 1024 * 1024, CLIP_CHUNK_MAX));
+    const res = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + b.id + "?alt=media", {
+      headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken(), Range: "bytes=" + start + "-" + (start + len - 1) },
+      muteHttpExceptions: true });
+    const code = res.getResponseCode();
+    if (code === 416) return { start: start, data: "", total: start };
+    if (code !== 200 && code !== 206) return { error: "drive " + code + " " + res.getContentText().slice(0, 120) };
+    const bytes = res.getBlob().getBytes();
+    const h = res.getHeaders(), range = String(h["Content-Range"] || h["content-range"] || "");
+    const m = range.match(/\/(\d+)$/);
+    const total = m ? Number(m[1]) : (code === 200 ? bytes.length : start + bytes.length);
+    // Drive ignored the range and sent the whole file: hand back just the piece asked for.
+    const piece = code === 200 && start > 0 ? bytes.slice(start, start + len) : (code === 200 ? bytes.slice(0, len) : bytes);
+    return { start: start, data: Utilities.base64Encode(piece), total: total };
+  } catch (err) { return { error: String(err).slice(0, 200) }; }
 }
 
 /** Moves clips to the Google Drive trash (Drive empties it after 30 days, so a mistake can be undone there). */
@@ -1329,4 +1344,15 @@ function deleteClips(b) {
     try { DriveApp.getFileById(id).setTrashed(true); done.push(id); } catch (err) {}
   });
   return { ok: true, deleted: done };
+}
+
+/** Run from the editor to check clip playback without a phone: it lists clips and loads the first piece of the newest. */
+function testClips() {
+  const l = listClips({});
+  Logger.log(JSON.stringify(l).slice(0, 800));
+  if (l.clips && l.clips.length) {
+    const t0 = Date.now(), c = clipChunk({ id: l.clips[0].id, start: 0 });
+    Logger.log(c.error ? "Chunk error: " + c.error : "Chunk OK: " + Math.round(c.data.length * 0.75 / 1024) + " KB of " +
+      Math.round(c.total / 1024) + " KB in " + (Date.now() - t0) + " ms");
+  }
 }
