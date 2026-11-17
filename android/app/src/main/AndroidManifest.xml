@@ -10,8 +10,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Only old Android (9 and below) needs this to save a doorbell clip to the phone -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:label="Delgado Family"
@@ -30,8 +28,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Press and hold the app icon → "Front door clips" -->
-            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
             <!-- Share a recipe link from Chrome or a recipe app → ingredients review screen -->
             <intent-filter android:label="Add to shopping list">
                 <action android:name="android.intent.action.SEND" />
@@ -39,17 +35,6 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-
-        <!-- Front door: doorbell clips from Google Drive -->
-        <activity
-            android:name=".DoorbellActivity"
-            android:exported="false"
-            android:label="Front door" />
-        <activity
-            android:name=".ClipActivity"
-            android:exported="false"
-            android:label="Front door clip"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
 
         <activity
             android:name=".SettingsActivity"

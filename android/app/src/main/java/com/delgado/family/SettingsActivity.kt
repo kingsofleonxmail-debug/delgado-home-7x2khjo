@@ -61,12 +61,6 @@ class SettingsActivity : Activity() {
 
         col.addView(title("Delgado Family settings", 22f))
 
-        // ----- Front door clips -----
-        val doorCard = card(col)
-        doorCard.addView(label("FRONT DOOR"))
-        doorCard.addView(small("Watch, save or delete doorbell clips. Also: the 🔔 in the app's corner, or press and hold the app icon."))
-        doorCard.addView(button("Open front door clips") { startActivity(Intent(this, DoorbellActivity::class.java)) }, lp(top = 10))
-
         // ----- Family code -----
         val codeCard = card(col)
         codeCard.addView(label("FAMILY CODE"))
