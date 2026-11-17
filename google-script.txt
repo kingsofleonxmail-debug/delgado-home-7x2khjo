@@ -1246,7 +1246,7 @@ function driveGet(path) {
 // Every few minutes, new doorbell clips in Drive (Doorbell > Clips) are copied into a Google Photos album
 // called "Front Door". Watch, download or delete them in the Google Photos app. Setup: see setupPhotos below.
 const PHOTOS_ALBUM_NAME = "Front Door";
-const PHOTOS_TRASH_DRIVE_COPY = false;   // true = move each Drive copy to the Drive trash once it's safely in Photos
+const PHOTOS_TRASH_DRIVE_COPY = true;    // each Drive copy goes to the Drive trash once it's safely in Photos (Photos is the copy you keep)
 const PHOTOS_MAX_BYTES = 400 * 1024 * 1024;  // bigger clips stay in Drive only
 const PHOTOS_PIECE = 8 * 1024 * 1024;        // moved 8 MB at a time so the script never runs out of memory
 
