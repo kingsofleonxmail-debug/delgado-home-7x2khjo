@@ -1181,7 +1181,8 @@ function doorAlert(msg, blob) {
       try {
         const r = UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendPhoto",
           { method: "post", payload: { chat_id: chat, caption: msg, photo: blob }, muteHttpExceptions: true });
-        out.push("telegram photo: " + r.getResponseCode()); ok = ok || r.getResponseCode() === 200;
+        out.push("telegram photo: " + r.getResponseCode() + (r.getResponseCode() === 200 ? "" : " " + r.getContentText().slice(0, 120)));
+        ok = ok || r.getResponseCode() === 200;
       } catch (err) { out.push("telegram photo: " + String(err).slice(0, 80)); }
     });
   }
@@ -1189,6 +1190,13 @@ function doorAlert(msg, blob) {
     try { MailApp.sendEmail({ to: ALERT_EMAIL, subject: msg, body: msg + "\n\n\u2014 Delgado Family Dashboard", attachments: [blob] }); out.push("email: sent"); ok = true; }
     catch (err) { out.push("email: " + String(err).slice(0, 80)); }
   }
+  // Keep a record next to the other alerts (Project Settings > Script Properties > alert-log).
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const log = JSON.parse(props.getProperty("alert-log") || "[]");
+    log.unshift(fmtTime(Date.now()) + " | door photo | " + (out.join(" ; ") || "no Telegram, ntfy or email set"));
+    props.setProperty("alert-log", JSON.stringify(log.slice(0, 15)));
+  } catch (err) {}
   return ok ? out : out.concat(sendAlert(msg));
 }
 
