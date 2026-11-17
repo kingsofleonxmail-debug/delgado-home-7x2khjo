@@ -1356,3 +1356,101 @@ function testClips() {
       Math.round(c.total / 1024) + " KB in " + (Date.now() - t0) + " ms");
   }
 }
+
+// ---------- Front door clips → Google Photos album ----------
+// Every few minutes, new doorbell clips in Drive (Doorbell > Clips) are copied into a Google Photos album
+// called "Front Door". Watch, download or delete them in the Google Photos app. Setup: see setupPhotos below.
+const PHOTOS_ALBUM_NAME = "Front Door";
+const PHOTOS_TRASH_DRIVE_COPY = false;   // true = move each Drive copy to the Drive trash once it's safely in Photos
+const PHOTOS_MAX_BYTES = 48 * 1024 * 1024;   // Apps Script can't move bigger files in one go; those stay in Drive only
+
+/**
+ * Run once from the editor after the setup steps. It asks for Google Photos permission, makes the
+ * "Front Door" album, copies the last 2 days of clips, and then keeps copying new ones every 5 minutes.
+ */
+function setupPhotos() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "copyClipsToPhotos") ScriptApp.deleteTrigger(t); });
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("photos-since")) props.setProperty("photos-since", String(Date.now() - 2 * 864e5));
+  const album = photosAlbum();
+  Logger.log("Album ready: " + album.url);
+  ScriptApp.newTrigger("copyClipsToPhotos").timeBased().everyMinutes(5).create();
+  copyClipsToPhotos();
+}
+
+/** Turns the automatic copying off (the album and its clips stay). */
+function stopPhotos() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "copyClipsToPhotos") ScriptApp.deleteTrigger(t); });
+  Logger.log("Stopped copying clips to Google Photos.");
+}
+
+function photosApi(method, path, body) {
+  const res = UrlFetchApp.fetch("https://photoslibrary.googleapis.com/v1/" + path, {
+    method: method, contentType: "application/json", muteHttpExceptions: true,
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+    payload: body ? JSON.stringify(body) : undefined });
+  const code = res.getResponseCode(), text = res.getContentText();
+  if (code !== 200 && code !== 207) throw new Error("Photos " + code + ": " + text.slice(0, 200));
+  return JSON.parse(text || "{}");
+}
+
+function photosAlbum() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty("photos-album");
+  if (saved) return JSON.parse(saved);
+  const a = photosApi("post", "albums", { album: { title: PHOTOS_ALBUM_NAME } });
+  const album = { id: a.id, url: a.productUrl };
+  props.setProperty("photos-album", JSON.stringify(album));
+  return album;
+}
+
+function copyClipsToPhotos() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;                     // the last run is still going
+  const started = Date.now(), props = PropertiesService.getScriptProperties();
+  try {
+    const since = Number(props.getProperty("photos-since")) || Date.now() - 864e5;
+    const tz = Session.getScriptTimeZone();
+    // Day folders that could hold clips newer than "since"
+    const q1 = "'" + clipsFolderId() + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+    const firstDay = Utilities.formatDate(new Date(since - 864e5), tz, "yyyy-MM-dd");
+    const days = (driveGet("files?pageSize=1000&fields=files(id,name)&q=" + encodeURIComponent(q1)).files || [])
+      .filter(function (f) { return /^\d{4}-\d{2}-\d{2}$/.test(f.name) && f.name >= firstDay; });
+    if (!days.length) return;
+    const q2 = "(" + days.map(function (d) { return "'" + d.id + "' in parents"; }).join(" or ") + ") and trashed = false" +
+               " and mimeType contains 'video/' and createdTime > '" + new Date(since).toISOString() + "'";
+    const files = driveGet("files?pageSize=200&orderBy=createdTime&fields=files(id,name,size,createdTime)&q=" + encodeURIComponent(q2)).files || [];
+    if (!files.length) return;
+    const album = photosAlbum();
+    let done = 0, skipped = 0;
+    for (let i = 0; i < files.length; i++) {
+      if (Date.now() - started > 4 * 60e3) break;     // pick up the rest next run
+      const f = files[i], ts = new Date(f.createdTime).getTime();
+      if (Number(f.size) > PHOTOS_MAX_BYTES) {
+        console.log("Too big for Photos copy, left in Drive: " + f.name + " (" + Math.round(f.size / 1048576) + " MB)");
+        skipped++;
+      } else {
+        const media = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + f.id + "?alt=media",
+          { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+        if (media.getResponseCode() !== 200) throw new Error("Drive download " + media.getResponseCode() + " for " + f.name);
+        const up = UrlFetchApp.fetch("https://photoslibrary.googleapis.com/v1/uploads", {
+          method: "post", contentType: "application/octet-stream", payload: media.getBlob().getBytes(), muteHttpExceptions: true,
+          headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken(), "X-Goog-Upload-Content-Type": "video/mp4",
+                     "X-Goog-Upload-Protocol": "raw", "X-Goog-Upload-File-Name": f.name } });
+        if (up.getResponseCode() !== 200) throw new Error("Photos upload " + up.getResponseCode() + ": " + up.getContentText().slice(0, 150));
+        const when = Utilities.formatDate(new Date(ts), tz, "EEE MMM d, h:mm a");
+        const r = photosApi("post", "mediaItems:batchCreate", { albumId: album.id, newMediaItems: [{
+          description: "Front door · " + when, simpleMediaItem: { uploadToken: up.getContentText(), fileName: f.name } }] });
+        const st = ((r.newMediaItemResults || [])[0] || {}).status || {};
+        if (st.code && st.code !== 0) throw new Error("Photos refused " + f.name + ": " + (st.message || st.code));
+        if (PHOTOS_TRASH_DRIVE_COPY) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {} }
+        done++;
+      }
+      props.setProperty("photos-since", String(ts));     // only moves forward once this clip is handled
+    }
+    if (done || skipped) console.log("Copied " + done + " clip(s) to Google Photos" + (skipped ? ", " + skipped + " too big" : ""));
+  } catch (err) {
+    console.log("Photos copy problem: " + err);
+    props.setProperty("photos-last-error", Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM d h:mm a") + " " + String(err).slice(0, 300));
+  } finally { lock.releaseLock(); }
+}
