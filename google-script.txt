@@ -1362,7 +1362,8 @@ function testClips() {
 // called "Front Door". Watch, download or delete them in the Google Photos app. Setup: see setupPhotos below.
 const PHOTOS_ALBUM_NAME = "Front Door";
 const PHOTOS_TRASH_DRIVE_COPY = false;   // true = move each Drive copy to the Drive trash once it's safely in Photos
-const PHOTOS_MAX_BYTES = 48 * 1024 * 1024;   // Apps Script can't move bigger files in one go; those stay in Drive only
+const PHOTOS_MAX_BYTES = 400 * 1024 * 1024;  // bigger clips stay in Drive only
+const PHOTOS_PIECE = 8 * 1024 * 1024;        // moved 8 MB at a time so the script never runs out of memory
 
 /**
  * Run once from the editor after the setup steps. It asks for Google Photos permission, makes the
@@ -1430,17 +1431,10 @@ function copyClipsToPhotos() {
         console.log("Too big for Photos copy, left in Drive: " + f.name + " (" + Math.round(f.size / 1048576) + " MB)");
         skipped++;
       } else {
-        const media = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + f.id + "?alt=media",
-          { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-        if (media.getResponseCode() !== 200) throw new Error("Drive download " + media.getResponseCode() + " for " + f.name);
-        const up = UrlFetchApp.fetch("https://photoslibrary.googleapis.com/v1/uploads", {
-          method: "post", contentType: "application/octet-stream", payload: media.getBlob().getBytes(), muteHttpExceptions: true,
-          headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken(), "X-Goog-Upload-Content-Type": "video/mp4",
-                     "X-Goog-Upload-Protocol": "raw", "X-Goog-Upload-File-Name": f.name } });
-        if (up.getResponseCode() !== 200) throw new Error("Photos upload " + up.getResponseCode() + ": " + up.getContentText().slice(0, 150));
+        const token = photosUploadInPieces(f);
         const when = Utilities.formatDate(new Date(ts), tz, "EEE MMM d, h:mm a");
         const r = photosApi("post", "mediaItems:batchCreate", { albumId: album.id, newMediaItems: [{
-          description: "Front door · " + when, simpleMediaItem: { uploadToken: up.getContentText(), fileName: f.name } }] });
+          description: "Front door · " + when, simpleMediaItem: { uploadToken: token, fileName: f.name } }] });
         const st = ((r.newMediaItemResults || [])[0] || {}).status || {};
         if (st.code && st.code !== 0) throw new Error("Photos refused " + f.name + ": " + (st.message || st.code));
         if (PHOTOS_TRASH_DRIVE_COPY) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {} }
@@ -1453,4 +1447,30 @@ function copyClipsToPhotos() {
     console.log("Photos copy problem: " + err);
     props.setProperty("photos-last-error", Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM d h:mm a") + " " + String(err).slice(0, 300));
   } finally { lock.releaseLock(); }
+}
+
+/** Copies one Drive clip into Google Photos 8 MB at a time. Returns the Photos upload token. */
+function photosUploadInPieces(f) {
+  const size = Number(f.size), auth = function () { return "Bearer " + ScriptApp.getOAuthToken(); };
+  const start = UrlFetchApp.fetch("https://photoslibrary.googleapis.com/v1/uploads", {
+    method: "post", muteHttpExceptions: true,
+    headers: { Authorization: auth(), "X-Goog-Upload-Command": "start", "X-Goog-Upload-Content-Type": "video/mp4",
+               "X-Goog-Upload-File-Name": f.name, "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Raw-Size": String(size) } });
+  const h = start.getHeaders();
+  const url = h["X-Goog-Upload-URL"] || h["x-goog-upload-url"];
+  if (start.getResponseCode() !== 200 || !url) throw new Error("Photos upload start " + start.getResponseCode() + ": " + start.getContentText().slice(0, 150));
+  for (let off = 0; off < size; off += PHOTOS_PIECE) {
+    const end = Math.min(off + PHOTOS_PIECE, size) - 1;
+    let piece = UrlFetchApp.fetch("https://www.googleapis.com/drive/v3/files/" + f.id + "?alt=media", {
+      headers: { Authorization: auth(), Range: "bytes=" + off + "-" + end }, muteHttpExceptions: true });
+    if (piece.getResponseCode() !== 206 && piece.getResponseCode() !== 200) throw new Error("Drive download " + piece.getResponseCode() + " for " + f.name);
+    const last = end + 1 >= size;
+    const up = UrlFetchApp.fetch(url, {
+      method: "post", contentType: "application/octet-stream", payload: piece.getContent(), muteHttpExceptions: true,
+      headers: { Authorization: auth(), "X-Goog-Upload-Command": last ? "upload, finalize" : "upload", "X-Goog-Upload-Offset": String(off) } });
+    piece = null;
+    if (up.getResponseCode() !== 200) throw new Error("Photos upload " + up.getResponseCode() + " at " + off + ": " + up.getContentText().slice(0, 150));
+    if (last) return up.getContentText();
+  }
+  throw new Error("Photos upload never finished for " + f.name);
 }
