@@ -101,6 +101,25 @@ class MainActivity : Activity() {
         root.addView(gear, FrameLayout.LayoutParams(size, size, Gravity.BOTTOM or Gravity.END).apply {
             setMargins(margin, margin, margin, margin)
         })
+        // Front door clips: a small bell in the bottom-left corner of the app (not part of the dashboard page).
+        val bell = TextView(this).apply {
+            text = "🔔"
+            textSize = 18f
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#E6131D36"))
+                setStroke(2, Color.parseColor("#6622D3EE"))
+            }
+            contentDescription = "Front door clips"
+            setOnClickListener { startActivity(Intent(this@MainActivity, DoorbellActivity::class.java)) }
+        }
+        val bellLp = FrameLayout.LayoutParams(size, size, Gravity.BOTTOM or Gravity.START).apply {
+            setMargins(margin, margin, margin, margin)
+        }
+        root.addView(bell, bellLp)
+        val dockLift = (84 * resources.displayMetrics.density).toInt()
+
         // On phones the dashboard puts Settings in its bottom dock, so the floating gear hides there.
         // It stays on bigger screens (no dock) and if the page can't load.
         web.addJavascriptInterface(object {
@@ -108,7 +127,12 @@ class MainActivity : Activity() {
                 runOnUiThread { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
             }
             @JavascriptInterface fun setDock(showing: Boolean) {
-                runOnUiThread { gear.visibility = if (showing) View.GONE else View.VISIBLE }
+                runOnUiThread {
+                    gear.visibility = if (showing) View.GONE else View.VISIBLE
+                    // Sit just above the dashboard's bottom bar on phones.
+                    bellLp.bottomMargin = if (showing) dockLift else margin
+                    bell.layoutParams = bellLp
+                }
             }
         }, "DelgadoApp")
         setContentView(root)

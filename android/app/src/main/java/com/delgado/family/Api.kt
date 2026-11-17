@@ -40,7 +40,7 @@ object Prefs {
 
 /** Talks to the family's Google Apps Script. Always call off the main thread. */
 object Api {
-    fun post(ctx: Context, body: JSONObject): JSONObject? {
+    fun post(ctx: Context, body: JSONObject, timeoutMs: Int = 25000): JSONObject? {
         val key = Prefs.key(ctx)
         if (key.isEmpty()) return null
         body.put("key", key)
@@ -50,7 +50,7 @@ object Api {
             conn.doOutput = true
             conn.instanceFollowRedirects = false
             conn.connectTimeout = 15000
-            conn.readTimeout = 25000
+            conn.readTimeout = timeoutMs
             conn.setRequestProperty("Content-Type", "text/plain;charset=utf-8")
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             var code = conn.responseCode
@@ -62,7 +62,7 @@ object Api {
                 conn = URL(loc).openConnection() as HttpURLConnection
                 conn.instanceFollowRedirects = false
                 conn.connectTimeout = 15000
-                conn.readTimeout = 25000
+                conn.readTimeout = timeoutMs
                 code = conn.responseCode
                 if (++hops > 5) break
             }
