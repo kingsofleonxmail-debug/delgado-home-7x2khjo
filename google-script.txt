@@ -72,6 +72,7 @@ function doPost(e) {
     return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
                   shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns(), grill: readGrill() });
   }
+  if (body.action === "doorbell") return handleDoorbell(body);   // before the log ops: it uses "op" too
   if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
   if (body.op && String(body.op).indexOf("shift") === 0) return handleShiftOp(body);
   if (body.op && String(body.op).indexOf("cd") === 0) return handleCountdownOp(body);
@@ -86,7 +87,6 @@ function doPost(e) {
   if (body.action === "speak") return handleSpeak(body);
   if (body.action === "game") return handleGame(body);
   if (body.action === "grill") return handleGrill(body);
-  if (body.action === "doorbell") return handleDoorbell(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
