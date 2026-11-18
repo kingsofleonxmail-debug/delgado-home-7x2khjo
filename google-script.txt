@@ -765,7 +765,7 @@ function testBriefing() {
 const GAME_PLAYERS = ["Dad", "Mom", "Julien", "Vinny"];
 // Pet logs earn points (whoever logged it); points unlock pet skins in the game.
 const PET_POINTS = { dogfed: 1, catfed: 1, dogsout: 1, litter: 10 };
-const SKIN_COST = { sheepdog: 0, sophie: 10, sammie: 10, santi: 10, dababy: 25 };
+const SKIN_COST = { sheepdog: 0, sophie: 10, sammie: 10, santi: 10, julien: 5, vinny: 5, dababy: 25 };
 function readEarned() {
   const props = PropertiesService.getScriptProperties();
   const raw = props.getProperty("pts-earned");
@@ -1090,11 +1090,11 @@ function morningParts() {
 }
 
 
-/* ───────────── Front door (Reolink doorbell via My TV Home) ─────────────
+/* ------------- Front door (Reolink doorbell via My TV Home) -------------
  * My TV Home watches the doorbell. It sends:
- *   {action:"doorbell", op:"ring",   kind:"ring"|"person", img:<base64 jpeg>}  → saved + phone alert (rings only)
- *   {action:"doorbell", op:"upload", name, mime, size}  → a one-time Google Drive upload link for a clip
- *   {action:"doorbell", op:"nap"}    → is a nap running? (the TV mutes the chime while it is)
+ *   {action:"doorbell", op:"ring",   kind:"ring"|"person", img:<base64 jpeg>}  -> saved + phone alert (rings only)
+ *   {action:"doorbell", op:"upload", name, mime, size}  -> a one-time Google Drive upload link for a clip
+ *   {action:"doorbell", op:"nap"}    -> is a nap running? (the TV mutes the chime while it is)
  * The dashboard asks {action:"doorbell", op:"list"} for the visitor log.
  */
 const DOOR_FOLDER = "Doorbell";          // top folder in your Google Drive
@@ -1250,7 +1250,7 @@ function driveGet(path) {
   return JSON.parse(res.getContentText());
 }
 
-// ---------- Front door clips → Google Photos album ----------
+// ---------- Front door clips -> Google Photos album ----------
 // Every few minutes, new doorbell clips in Drive (Doorbell > Clips) are copied into a Google Photos album
 // called "Front Door". Watch, download or delete them in the Google Photos app. Setup: see setupPhotos below.
 const PHOTOS_ALBUM_NAME = "Front Door";
@@ -1327,7 +1327,7 @@ function copyClipsToPhotos() {
         const token = photosUploadInPieces(f);
         const when = Utilities.formatDate(new Date(ts), tz, "EEE MMM d, h:mm a");
         const r = photosApi("post", "mediaItems:batchCreate", { albumId: album.id, newMediaItems: [{
-          description: "Front door · " + when, simpleMediaItem: { uploadToken: token, fileName: f.name } }] });
+          description: "Front door \u00B7 " + when, simpleMediaItem: { uploadToken: token, fileName: f.name } }] });
         const st = ((r.newMediaItemResults || [])[0] || {}).status || {};
         if (st.code && st.code !== 0) throw new Error("Photos refused " + f.name + ": " + (st.message || st.code));
         if (PHOTOS_TRASH_DRIVE_COPY) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {} }

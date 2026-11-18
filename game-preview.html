@@ -610,6 +610,8 @@ const SKINS = [
   { id: "sophie",   name: "Sophie",   desc: "Fluffy grey cat · pink collar", cost: 10 },
   { id: "sammie",   name: "Sammie",   desc: "Sheepadoodle · space buns", cost: 10 },
   { id: "santi",    name: "Santi",    desc: "Big grey tabby", cost: 10 },
+  { id: "julien",   name: "Julien",   desc: "Frog boy", cost: 5 },
+  { id: "vinny",    name: "Vinny",    desc: "Napoleon boy", cost: 5 },
   { id: "dababy",   name: "Da Baby",  desc: "Wildcat kitten", cost: 25 },
   { id: "sebastian", name: "Sebastian", desc: "Shark Baby · top score only", cost: -1, crown: true }
 ];
@@ -796,7 +798,114 @@ function drawSebastian(p){
   // front arm swinging
   cx.save(); cx.translate(4, -25); cx.rotate(sw(Math.PI) * .7); cx.fillStyle = B1; rr(-2.8, 0, 5.6, 11, 2.8); cx.fill(); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.6, 2.5, 0, 7); cx.fill(); cx.restore();
 }
-const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby, sebastian: drawSebastian };
+/* Shared kid runner: legs, arms and head positions so the boys move like Sebastian */
+function kidSwing(p, a){ return p.ground ? Math.sin(p.ph + a) : (a ? -.5 : .6); }
+
+/* Julien: frog boy (green frog hat, light blue shirt, shorts, sneakers, toy frog + stick) */
+function drawJulien(p){
+  const k = p.k, Sh = mix("#93c5fd", "#5f7fae", k * .5), Sh2 = mix("#7fb2ef", "#516f9a", k * .5), Pa = mix("#4b6a8f", "#33496a", k * .4),
+    Sk = mix("#f2c7a5", "#b99b86", k * .45), Hr = mix("#8a5a35", "#5a3b24", k * .3), Fg = mix("#4ade80", "#2f8f57", k * .45), Fg2 = mix("#22c55e", "#1f7a45", k * .45),
+    Shoe = mix("#6b7280", "#474d5a", k * .4), Sock = mix("#f8fafc", "#c7cede", k * .5);
+  const sw = a => kidSwing(p, a);
+  const leg = (lx, a, front) => { const s = sw(a) * 5;
+    cx.fillStyle = Sk; rr(lx + s - 2.2, -11, 4.4, 7, 2); cx.fill();                       // leg
+    cx.fillStyle = Sock; rr(lx + s - 2.3, -5.5, 4.6, 3, 1); cx.fill();                    // sock
+    cx.fillStyle = Shoe; cx.beginPath(); cx.ellipse(lx + s + 1.2, -1.8, 4.4, 2.3, 0, 0, 7); cx.fill();
+    cx.fillStyle = "#fff"; cx.fillRect(lx + s - 2.5, -1.2, 7, .9); };
+  leg(-3, Math.PI);
+  // back arm with a stick
+  cx.save(); cx.translate(-2, -24); cx.rotate(-sw(0) * .6);
+  cx.fillStyle = Sh2; rr(-2.6, 0, 5.2, 5, 2.4); cx.fill(); cx.fillStyle = Sk; rr(-2, 4, 4, 6, 2); cx.fill();
+  cx.strokeStyle = mix("#7c4a1e", "#4d2f14", k * .3); cx.lineWidth = 1.6; cx.lineCap = "round"; cx.beginPath(); cx.moveTo(-6, 13); cx.lineTo(7, 7.5); cx.stroke();
+  cx.restore();
+  // shorts + shirt
+  cx.fillStyle = Pa; rr(-6.5, -15, 13, 6.5, 2.5); cx.fill();
+  cx.fillStyle = Sh; rr(-7.5, -27, 15, 13.5, 4); cx.fill();
+  cx.strokeStyle = "rgba(255,255,255,.7)"; cx.lineWidth = .7; cx.beginPath(); cx.moveTo(3.5, -26); cx.lineTo(3.5, -15); cx.stroke();
+  cx.fillStyle = "rgba(255,255,255,.8)"; [-23, -20, -17].forEach(y => { cx.beginPath(); cx.arc(4.6, y, .55, 0, 7); cx.fill(); });
+  cx.fillStyle = Sh2; cx.beginPath(); cx.moveTo(-1, -27); cx.lineTo(3.5, -24); cx.lineTo(7, -27.5); cx.closePath(); cx.fill();   // collar
+  leg(3, 0);
+  // head
+  const hx = 3, hy = -35 + (p.ground ? Math.abs(Math.sin(p.ph)) * -.8 : -1);
+  cx.fillStyle = Sk; cx.beginPath(); cx.ellipse(hx, hy, 8.4, 8.8, 0, 0, 7); cx.fill();
+  cx.beginPath(); cx.ellipse(hx - 7.5, hy + 1.5, 2.2, 2.8, 0, 0, 7); cx.fill();                 // ear
+  cx.fillStyle = Hr; [[-6, -2.5, 2.6], [-6.5, 1, 2.2], [-3, -5, 2.4]].forEach(([dx, dy, r]) => { cx.beginPath(); cx.arc(hx + dx, hy + dy, r, 0, 7); cx.fill(); });
+  // frog hat: green band with two big eyes on top and a smile
+  cx.fillStyle = Fg; rr(hx - 9, hy - 9, 18, 6.5, 3); cx.fill();
+  cx.fillStyle = Fg; cx.beginPath(); cx.ellipse(hx, hy - 9.5, 9.5, 4.5, 0, Math.PI, 0); cx.fill();
+  [[hx - 4.5, hy - 14], [hx + 4.5, hy - 14]].forEach(([ex, ey]) => {
+    cx.fillStyle = Fg; cx.beginPath(); cx.arc(ex, ey, 3.8, 0, 7); cx.fill();
+    cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(ex + .4, ey - .2, 2.5, 0, 7); cx.fill();
+    cx.fillStyle = "#111827"; cx.beginPath(); cx.arc(ex + .8, ey, 1.3, 0, 7); cx.fill(); });
+  cx.strokeStyle = "#b91c1c"; cx.lineWidth = .9; cx.beginPath(); cx.arc(hx + 1, hy - 8.5, 4.2, .25, Math.PI - .25); cx.stroke();
+  cx.fillStyle = Fg2; cx.fillRect(hx - 9, hy - 3.6, 18, 1.2);
+  // grumpy face
+  const eye = (ex, ey) => { cx.fillStyle = "#fff"; cx.beginPath(); cx.ellipse(ex, ey, 1.7, 2, 0, 0, 7); cx.fill();
+    cx.fillStyle = "#1f2937"; cx.beginPath(); cx.arc(ex + .5, ey - .3, 1.2, 0, 7); cx.fill(); };
+  eye(hx + 2.4, hy + .6); eye(hx + 6.8, hy + .5);
+  cx.strokeStyle = Hr; cx.lineWidth = 1; cx.lineCap = "round";
+  cx.beginPath(); cx.moveTo(hx + .6, hy - 2.4); cx.lineTo(hx + 4, hy - 1.2); cx.moveTo(hx + 8.6, hy - 2.3); cx.lineTo(hx + 5.6, hy - 1.2); cx.stroke();
+  cx.fillStyle = "rgba(244,114,128,.3)"; cx.beginPath(); cx.arc(hx + .3, hy + 4, 2, 0, 7); cx.fill();
+  cx.strokeStyle = "#9a4b3d"; cx.lineWidth = .9; cx.beginPath(); cx.arc(hx + 5.6, hy + 7.2, 1.8, Math.PI * 1.15, Math.PI * 1.85); cx.stroke();
+  // front arm holding a little toy frog
+  cx.save(); cx.translate(5, -24); cx.rotate(sw(Math.PI) * .45 - .5);
+  cx.fillStyle = Sh; rr(-2.6, 0, 5.2, 5, 2.4); cx.fill(); cx.fillStyle = Sk; rr(-2, 4, 4, 6, 2); cx.fill();
+  cx.fillStyle = Fg; cx.beginPath(); cx.ellipse(1.5, 11, 3, 3.6, 0, 0, 7); cx.fill();
+  cx.beginPath(); cx.arc(.5, 8, 1.3, 0, 7); cx.arc(2.8, 8, 1.3, 0, 7); cx.fill();
+  cx.fillStyle = "#111827"; cx.beginPath(); cx.arc(.5, 7.9, .5, 0, 7); cx.arc(2.8, 7.9, .5, 0, 7); cx.fill();
+  cx.strokeStyle = Fg2; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(.5, 14); cx.lineTo(-.3, 17); cx.moveTo(2.6, 14); cx.lineTo(3.4, 17); cx.stroke();
+  cx.restore();
+}
+
+/* Vinny: Napoleon boy (black bicorne, curly black hair, navy coat with gold epaulettes and red trim, tan breeches, tall boots) */
+function drawVinny(p){
+  const k = p.k, Nv = mix("#1e3a8a", "#16285c", k * .4), Nv2 = mix("#172e6e", "#11214a", k * .4), Rd = mix("#dc2626", "#9b1c1c", k * .4),
+    Gd = mix("#fbbf24", "#b8892a", k * .4), Tn = mix("#d9c08f", "#9c8a68", k * .45), Bt = mix("#1f1b18", "#141210", k * .2),
+    Sk = mix("#f2c7a5", "#b99b86", k * .45), Hr = mix("#1f1712", "#120d0a", k * .2), Hat = mix("#2a211b", "#1a1511", k * .2), Wh = mix("#f8fafc", "#c7cede", k * .5);
+  const sw = a => kidSwing(p, a);
+  const leg = (lx, a) => { const s = sw(a) * 5.5;
+    cx.fillStyle = Tn; rr(lx + s - 2.6, -16, 5.2, 7, 2.4); cx.fill();                         // breeches
+    cx.fillStyle = Bt; rr(lx + s - 2.6, -10, 5.4, 9, 1.6); cx.fill();                         // tall boot
+    cx.beginPath(); cx.ellipse(lx + s + 1.4, -1.6, 4.6, 2, 0, 0, 7); cx.fill(); };
+  leg(-3, Math.PI);
+  // coat tails behind
+  cx.fillStyle = Nv2; cx.beginPath(); cx.moveTo(-6, -17); cx.lineTo(-10, -8 + sw(0)); cx.lineTo(-5, -9); cx.closePath(); cx.fill();
+  // back arm
+  cx.save(); cx.translate(-3, -27); cx.rotate(-sw(0) * .5);
+  cx.fillStyle = Nv2; rr(-2.6, 0, 5.2, 9.5, 2.4); cx.fill(); cx.fillStyle = Rd; cx.fillRect(-2.6, 8, 5.2, 2); cx.fillStyle = Sk; cx.beginPath(); cx.arc(0, 11.6, 2.1, 0, 7); cx.fill();
+  cx.restore();
+  // coat
+  cx.fillStyle = Nv; rr(-7, -30, 14, 15.5, 3.5); cx.fill();
+  cx.fillStyle = Wh; cx.beginPath(); cx.moveTo(2, -29); cx.lineTo(6.6, -29); cx.lineTo(6.6, -17); cx.lineTo(3.2, -15); cx.closePath(); cx.fill();   // white vest
+  cx.strokeStyle = Rd; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(2, -29); cx.lineTo(2.6, -15.5); cx.stroke();
+  cx.fillStyle = Gd; [-27, -24, -21, -18].forEach(y => { cx.beginPath(); cx.arc(0, y, .65, 0, 7); cx.fill(); });
+  cx.fillStyle = Rd; rr(-1, -32, 7.5, 3, 1.2); cx.fill();                                   // red collar
+  leg(3, 0);
+  // gold epaulette
+  cx.fillStyle = Gd; rr(-4, -31, 8, 3, 1.5); cx.fill();
+  cx.strokeStyle = Gd; cx.lineWidth = .7; for(let i = 0; i < 5; i++){ cx.beginPath(); cx.moveTo(-3.4 + i * 1.6, -28); cx.lineTo(-3.6 + i * 1.6, -25.8); cx.stroke(); }
+  // head
+  const hx = 3, hy = -38 + (p.ground ? Math.abs(Math.sin(p.ph)) * -.8 : -1);
+  cx.fillStyle = Sk; cx.beginPath(); cx.ellipse(hx + .5, hy, 7.8, 8.4, 0, 0, 7); cx.fill();
+  cx.beginPath(); cx.ellipse(hx - 6.6, hy + 1.5, 2, 2.6, 0, 0, 7); cx.fill();
+  // curly black hair
+  cx.fillStyle = Hr; [[-6.5, -3, 2.6], [-7, .8, 2.2], [-6, 4, 1.9], [-3, -5.5, 2.4], [1, -6.2, 2.2], [5, -5.4, 2], [7.4, -3.8, 1.6]].forEach(([dx, dy, r]) => { cx.beginPath(); cx.arc(hx + dx, hy + dy, r, 0, 7); cx.fill(); });
+  // bicorne hat, worn sideways
+  cx.fillStyle = Hat; cx.beginPath(); cx.moveTo(hx - 15, hy - 5); cx.quadraticCurveTo(hx - 6, hy - 17, hx + 1, hy - 18);
+  cx.quadraticCurveTo(hx + 9, hy - 17, hx + 16, hy - 5); cx.quadraticCurveTo(hx + 1, hy - 9, hx - 15, hy - 5); cx.fill();
+  cx.fillStyle = mix("#3b2e24", "#241c16", k * .2); cx.beginPath(); cx.ellipse(hx + 3, hy - 12, 1.8, 2.4, 0, 0, 7); cx.fill();   // cockade
+  // smug little smile
+  cx.fillStyle = "#fff"; cx.beginPath(); cx.ellipse(hx + 4.6, hy + .3, 1.6, 1.4, 0, 0, 7); cx.fill();
+  cx.fillStyle = "#111827"; cx.beginPath(); cx.arc(hx + 5.3, hy + .5, .95, 0, 7); cx.fill();
+  cx.strokeStyle = Hr; cx.lineWidth = .9; cx.lineCap = "round"; cx.beginPath(); cx.moveTo(hx + 2.4, hy - 2.4); cx.quadraticCurveTo(hx + 4.6, hy - 3.2, hx + 6.8, hy - 2); cx.stroke();
+  cx.fillStyle = "rgba(244,114,128,.3)"; cx.beginPath(); cx.arc(hx + 1, hy + 3.5, 1.8, 0, 7); cx.fill();
+  cx.strokeStyle = "#9a4b3d"; cx.lineWidth = .9; cx.beginPath(); cx.moveTo(hx + 3.4, hy + 5.6); cx.quadraticCurveTo(hx + 5.6, hy + 7, hx + 7.6, hy + 5); cx.stroke();
+  // front arm (hand out, like he's showing off)
+  cx.save(); cx.translate(4, -27); cx.rotate(sw(Math.PI) * .4 - .35);
+  cx.fillStyle = Nv; rr(-2.6, 0, 5.2, 9.5, 2.4); cx.fill(); cx.fillStyle = Rd; cx.fillRect(-2.6, 8, 5.2, 2.2); cx.fillStyle = Sk; cx.beginPath(); cx.ellipse(0, 11.8, 2.2, 2.6, 0, 0, 7); cx.fill();
+  cx.restore();
+}
+const SKIN_DRAW = { sophie: drawSophie, sammie: drawSammie, santi: drawSanti, dababy: drawDaBaby, sebastian: drawSebastian, julien: drawJulien, vinny: drawVinny };
 
 /* ===== Skins: points, unlocks, which pet runs ===== */
 let skinState = store.get("fd-game-skins", { points: {}, skins: {} });

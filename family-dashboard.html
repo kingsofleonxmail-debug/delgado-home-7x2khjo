@@ -44,9 +44,10 @@ const CONFIG = {
 
   // School tracker — one card per kid. Keep "Left for school" first and "Arrived at school" second
   // (the iPhone shortcuts and the Google script use those positions: 0 = left, 1 = arrived).
+  // "Arrived" still ticks and still sends its alert, but it's hidden on the dashboard.
   kids: [
-    { name: "Julien", tasks: [["school","Left for school"],["arrived","Arrived at school"]] },
-    { name: "Vinny", tasks: [["school","Left for school"],["arrived","Arrived at school"]] }
+    { name: "Julien", tasks: [["school","Left for school"],["arrived","Arrived at school", "hidden"]] },
+    { name: "Vinny", tasks: [["school","Left for school"],["arrived","Arrived at school", "hidden"]] }
   ],
 
   // Who can log pets and naps (first one is the default on a new screen)
@@ -815,7 +816,7 @@ body.scrolled .slimbar{transform:none;visibility:visible}
     </div>
   </main>
 
-  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.22</span></footer>
+  <footer class="foot"><span id="fName"></span><span id="updated">Starting…</span><span>Live dashboard · v11.23</span></footer>
 </div>
 
 <script>
@@ -1073,27 +1074,28 @@ function renderChecklist(){ navSoon();
   const now = new Date(), wd = now.getDay()>0 && now.getDay()<6;
   $("clTitle").textContent = SOLO >= 0 ? `${CONFIG.kids[SOLO].name}'s school tracker` : "School tracker";
   const state = store.get(checkKey()) || {};
-  let atSchool = 0, shown = 0;
+  let leftCount = 0, shown = 0;
   $("kids").innerHTML = CONFIG.kids.map((k, ki) => {
     if(SOLO >= 0 && ki !== SOLO) return "";
     shown++;
     const done = state[ki] || [];
-    const left = done[0], arrived = done[1];
-    const n = k.tasks.filter((_, ti) => done[ti]).length, total = k.tasks.length;
-    if(arrived) atSchool++;
-    const status = arrived ? `<span class="tag good">At school</span>` : left ? `<span class="tag warm">On the way</span>` : `<span class="tag acc">Home</span>`;
-    const trip = typeof left === "number" && typeof arrived === "number" && arrived > left ? `Trip took ${dur(arrived - left)}` : "";
+    const left = done[0];
+    const vis = k.tasks.map((t, ti) => ti).filter(ti => k.tasks[ti][2] !== "hidden");
+    const n = vis.filter(ti => done[ti]).length, total = vis.length;
+    if(left) leftCount++;
+    const status = left ? `<span class="tag good">Left for school</span>` : `<span class="tag acc">Home</span>`;
+    const trip = "";
     return `<div class="kid">
       <div class="kh"><b>${esc(k.name)}</b>${status}</div>
       <div class="bar"><i style="width:${total ? n/total*100 : 0}%"></i></div>
-      ${k.tasks.map((t, ti) => `<button class="task${done[ti]?" done":""}" data-k="${ki}" data-t="${ti}" aria-pressed="${!!done[ti]}">
+      ${k.tasks.map((t, ti) => t[2] === "hidden" ? "" : `<button class="task${done[ti]?" done":""}" data-k="${ki}" data-t="${ti}" aria-pressed="${!!done[ti]}">
         <span class="box">${svg("check")}</span><span class="ic">${svg(t[0])}</span><span class="txt">${esc(t[1])}</span>
         <span class="when">${typeof done[ti] === "number" ? tstr(done[ti]) : ""}</span></button>`).join("")}
       <div class="trip">${trip}</div>
     </div>`;
   }).join("");
-  $("clTotal").textContent = `${atSchool}/${shown} at school`;
-  $("clTotal").className = "tag " + (atSchool===shown && shown ? "good" : "acc");
+  $("clTotal").textContent = `${leftCount}/${shown} left`;
+  $("clTotal").className = "tag " + (leftCount===shown && shown ? "good" : "acc");
 }
 $("kids").addEventListener("click", e => {
   const b = e.target.closest(".task"); if(!b) return;
@@ -1866,12 +1868,12 @@ function summary(id){
   const now = new Date();
   if(id === "school"){
     const st = store.get(checkKey()) || {};
-    const kids = CONFIG.kids.map((k,i) => ({ n:k.name, l:(st[i]||[])[0], a:(st[i]||[])[1] }));
-    const at = kids.filter(k => k.a).length, way = kids.filter(k => k.l && !k.a);
+    const kids = CONFIG.kids.map((k,i) => ({ n:k.name, l:(st[i]||[])[0] }));
+    const gone = kids.filter(k => k.l).length;
     const wd = now.getDay() > 0 && now.getDay() < 6;
-    const line = kids.map(k => k.a ? `${k.n} at school${typeof k.a === "number" ? " " + tstr(k.a) : ""}` : k.l ? `${k.n} on the way` : `${k.n} home`).join(" · ");
-    return { line, big: `${at} of ${kids.length}`, sub: way.length ? "at school · " + way.map(k => k.n).join(", ") + " on the way" : at ? "at school" : (wd ? "Not left yet" : "No school today"),
-             cls: way.length ? "warn" : (at === kids.length && at ? "hot" : "") };
+    const line = kids.map(k => k.l ? `${k.n} left${typeof k.l === "number" ? " " + tstr(k.l) : ""}` : `${k.n} home`).join(" · ");
+    return { line, big: `${gone} of ${kids.length}`, sub: gone ? "left for school" : (wd ? "Not left yet" : "No school today"),
+             cls: gone === kids.length && gone ? "hot" : "" };
   }
   if(id === "calendar"){
     const nowHm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;

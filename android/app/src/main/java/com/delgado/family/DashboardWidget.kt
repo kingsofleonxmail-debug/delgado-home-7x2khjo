@@ -78,12 +78,8 @@ class DashboardWidget : AppWidgetProvider() {
             val checks = d.optJSONObject("checks") ?: JSONObject()
             return "🏫 " + Config.KIDS.mapIndexed { i, name ->
                 val row = checks.optJSONArray(i.toString())
-                val left = stamp(row, 0); val arrived = stamp(row, 1)
-                when {
-                    arrived != null -> "$name at school" + if (arrived > 0) " ${time(arrived)}" else ""
-                    left != null -> "$name on the way"
-                    else -> "$name home"
-                }
+                val left = stamp(row, 0)   // "arrived" still alerts Dad but isn't shown anymore
+                if (left != null) "$name left" + (if (left > 0) " ${time(left)}" else "") else "$name home"
             }.joinToString(" · ")
         }
 
