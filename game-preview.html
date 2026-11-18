@@ -17,7 +17,8 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 #bar button{font:inherit;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:8px 11px;cursor:pointer}
 #off{display:none;margin:0 14px 8px;padding:8px 12px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fcd38d;font-size:12px;font-weight:600}
 .offline #off{display:block}
-#stage{position:relative;flex:1;min-height:0}
+#stage{position:relative;flex:1;min-height:0;touch-action:none}   /* no pull-to-refresh, zoom or scroll while playing */
+.note{font-size:12px;font-weight:700;color:var(--good);background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.45);border-radius:10px;padding:7px 10px;margin:0 0 10px}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #ov{position:absolute;inset:0;display:grid;place-items:center;padding:16px;pointer-events:none}
 .card{pointer-events:auto;width:min(440px,100%);background:rgba(8,13,27,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(var(--acc-rgb),.35);
@@ -94,6 +95,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
       <div class="card" id="startCard">
         <div class="hrow"><h1>Sheepdog <em>Run</em></h1><span class="pts" id="ptsChip">⭐ 0 pts</span></div>
         <div class="sub">Jump the bins, boxes and hydrants. Duck the birds!</div>
+        <div class="note" id="recNote" hidden></div>
         <div class="bh"><span>Who's playing?</span></div>
         <div class="who" id="who"></div>
         <div class="bh"><span>Family best</span><span id="syncTag"></span></div>
@@ -109,6 +111,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
         <div class="smsg" id="smsg"></div>
         <div class="sgrid" id="sgrid"></div>
         <button type="button" class="go" id="skinsDone">‹ Back</button>
+      </div>
+      <div class="card" id="pauseCard" hidden>
+        <h1>⏸ <em>Paused</em></h1>
+        <div class="big" id="pScore">0</div>
+        <div class="sub" id="pWho">Your run is saved</div>
+        <div class="row2"><button type="button" class="go" id="resume">▶ Resume</button><button type="button" class="alt" id="endRun">End run</button></div>
       </div>
       <div class="card" id="overCard" hidden>
         <h1>Woof! <em>Game over</em></h1>
@@ -140,7 +148,7 @@ const params = new URLSearchParams(location.search);
 const OFFLINE_MODE = params.get("offline") === "1";
 if(OFFLINE_MODE) document.body.classList.add("offline");
 const backUrl = () => { const q = new URLSearchParams(location.search); q.delete("offline"); const s = q.toString(); return DASH + (s ? "?" + s : ""); };
-$("back").addEventListener("click", () => { location.href = backUrl(); });
+$("back").addEventListener("click", () => { if(typeof state !== "undefined" && state === "play"){ pause(); return; } if(typeof saveRun === "function") saveRun(); location.href = backUrl(); });
 addEventListener("online", () => { if(OFFLINE_MODE) setTimeout(() => location.replace(backUrl()), 1500); });
 if(OFFLINE_MODE) setInterval(() => { if(navigator.onLine) fetch(DASH, { method: "HEAD", cache: "no-store" }).then(r => { if(r.ok) location.replace(backUrl()); }).catch(() => {}); }, 15000);
 if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -179,12 +187,23 @@ async function sync(){
       renderSkinUi(); }
   } catch(e){}
 }
-function recordScore(s){
-  if(PREVIEW) return false;
+function recordScore(s, p = who){
+  if(PREVIEW || !PEOPLE.includes(p)) return false;
   let nb = false;
-  if(s > (local[who] || 0)){ local[who] = s; store.set("fd-game-best", local); }
-  if(s > ((board[who] && board[who].score) || 0) && s > 0){ if(s >= best(who)) nb = true; pending[who] = Math.max(pending[who] || 0, s); store.set("fd-game-pending", pending); }
+  if(s > (local[p] || 0)){ local[p] = s; store.set("fd-game-best", local); }
+  if(s > ((board[p] && board[p].score) || 0) && s > 0){ if(s >= best(p)) nb = true; pending[p] = Math.max(pending[p] || 0, s); store.set("fd-game-pending", pending); }
   sync(); return nb;
+}
+/* Autosave: the run in progress is kept on the phone every second, so if the page closes, reloads
+   or the phone kills it, the score still counts (it's credited the next time the game opens). */
+let runWho = who;
+const saveRun = () => { if(!PREVIEW && (state === "play" || state === "paused") && score > 0) store.set("fd-game-run", { who: runWho, score, ts: Date.now() }); };
+const clearRun = () => { try { localStorage.removeItem("fd-game-run"); } catch(e){} };
+function recoverRun(){
+  const r = store.get("fd-game-run", null); clearRun();
+  if(!r || !PEOPLE.includes(r.who) || !(r.score > 0)) return;
+  recordScore(r.score, r.who);
+  const n = $("recNote"); n.textContent = `💾 Saved ${r.who}'s last run: ${r.score.toLocaleString()}`; n.hidden = false;
 }
 
 /* ===== Sound (tiny beeps, no files needed) ===== */
@@ -229,7 +248,7 @@ addEventListener("resize", resize);
 const G = 2000, JUMP = -640, HOLD_G = 0.55;   // gravity, jump speed, lighter gravity while holding jump
 let state = "start", t = 0, speed, score, dist, obs, birds, clouds, nextGap, night, nightT, flash, lastPoint, shake, dog;
 // Mystery blocks + power-ups
-let blocks, nextBlock, pops, parts, slowT, slowMul, shield, invuln, banner;
+let blocks, nextBlock, pops, parts, slowT, slowMul, shield, invuln, banner, ready = 0;
 const SLOW_TIME = 5, SLOW_SPEED = .6;
 function reset(){
   speed = 270; score = 0; dist = 0; obs = []; nextGap = 380; night = 0; nightT = 0; flash = 0; lastPoint = 0; shake = 0;
@@ -270,7 +289,8 @@ function jump(){
 function update(dt){
   t += dt;
   clouds.forEach(c => { c.x -= dt * 14 * c.s; if(c.x < -60) { c.x = W + Math.random() * 100; c.y = 30 + Math.random() * 60; } });
-  if(state !== "play") { dog.run += dt * 4; return; }
+  if(state !== "play") { if(state !== "paused") dog.run += dt * 4; return; }
+  if(ready > 0){ ready -= dt; return; }        // short "get ready" after resuming
   if(slowT <= 0) speed = Math.min(720, speed + dt * 7.5);
   slowT = Math.max(0, slowT - dt);
   slowMul += ((slowT > 0 ? SLOW_SPEED : 1) - slowMul) * Math.min(1, dt * 4);   // ease in and out of slow-mo
@@ -368,16 +388,17 @@ function dogBox(){
 }
 function crash(){
   state = "over"; shake = .35; SFX.crash();
-  const nb = recordScore(score);
+  const nb = recordScore(score, runWho); clearRun(); $("pauseCard").hidden = true;
   $("final").textContent = score;
-  $("nb").innerHTML = nb ? `<span class="newbest">NEW ${who.toUpperCase()} BEST</span>` : `<span style="font-size:12px;color:var(--muted)">${who}'s best: ${best(who)}</span>`;
+  $("nb").innerHTML = nb ? `<span class="newbest">NEW ${runWho.toUpperCase()} BEST</span>` : `<span style="font-size:12px;color:var(--muted)">${runWho}'s best: ${best(runWho)}</span>`;
   renderBoard();
   setTimeout(() => { $("overCard").hidden = false; $("again").focus({ preventScroll: true }); }, 450);
 }
 function start(){
-  if(state === "play") return;
-  runSkin = skin();
-  reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; $("skinCard").hidden = true; SFX.woof();
+  if(state === "play" || state === "paused") return;
+  runSkin = skin(); runWho = who;          // locked for this run: switching players can't change who gets the score
+  reset(); state = "play"; $("startCard").hidden = true; $("overCard").hidden = true; $("skinCard").hidden = true; $("pauseCard").hidden = true; $("recNote").hidden = true; SFX.woof();
+  guardBack();
   try { AC && AC.resume && AC.resume(); } catch(e){}
 }
 
@@ -451,7 +472,7 @@ function draw(){
   cx.fillStyle = flash > 0 && Math.floor(flash * 8) % 2 ? "transparent" : col;
   const hy = top + 22;   // the top of the screen (tall phones have extra sky above the road)
   cx.fillText(String(score).padStart(5, "0"), W - 10, hy);
-  cx.globalAlpha = .6; cx.fillStyle = col; cx.fillText(`HI ${String(best(who)).padStart(5, "0")}  ·  ${who}`, W - 62, hy); cx.globalAlpha = 1;
+  cx.globalAlpha = .6; cx.fillStyle = col; const hw = state === "start" ? who : runWho; cx.fillText(`HI ${String(best(hw)).padStart(5, "0")}  ·  ${hw}`, W - 62, hy); cx.globalAlpha = 1;
   // power-up status (top left)
   let sxp = 10;
   if(slowT > 0){
@@ -461,6 +482,11 @@ function draw(){
     sxp += 74;
   }
   if(shield){ drawPrize("stromboli", sxp + 10, hy + 7, .7); sparkle(sxp + 20, hy + 1, 2.4 + Math.sin(t * 8), "#fbbf24"); }
+  if(state === "play" && ready > 0){
+    cx.font = "900 26px Inter,system-ui,sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.lineWidth = 5; cx.lineJoin = "round"; cx.strokeStyle = k > .5 ? "#0b1020" : "#ffffff"; cx.strokeText(Math.ceil(ready), W / 2, GROUND - 120);
+    cx.fillStyle = "#22d3ee"; cx.fillText(Math.ceil(ready), W / 2, GROUND - 120);
+  }
   if(banner){
     const a = Math.min(1, banner.t * 2.5), yb = GROUND - 150 - (1.6 - banner.t) * 10;
     cx.globalAlpha = a; cx.font = "900 15px Inter,system-ui,sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
@@ -983,11 +1009,49 @@ $("who2").addEventListener("click", e => { const b = e.target.closest("[data-p]"
 
 /* ===== Loop + controls ===== */
 let last = performance.now();
+let errs = 0, lastSave = 0;
 function frame(now){
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  update(dt); draw();
+  try {
+    update(dt); draw();
+    if(now - lastSave > 1000){ lastSave = now; saveRun(); }
+  } catch(e){ safetyNet(e); }
   requestAnimationFrame(frame);
 }
+/* Safety net: if anything goes wrong, the score is saved first and the run ends normally */
+function safetyNet(e){
+  errs++;
+  try { if(state === "play" || state === "paused"){ saveRun(); crash(); $("nb").innerHTML += `<div style="font-size:11px;color:var(--muted);margin-top:4px">💾 Run saved after a hiccup</div>`; } } catch(_){}
+  try { store.set("fd-game-lasterr", { m: String(e && e.message || e).slice(0, 200), at: Date.now(), errs }); } catch(_){}
+}
+addEventListener("error", e => { saveRun(); });
+addEventListener("unhandledrejection", () => { saveRun(); });
+
+/* Pause: when the app/tab is hidden, the phone locks, a notification is opened, or the back gesture fires */
+function pause(){
+  if(state !== "play") return;
+  state = "paused"; dog.holding = false; dog.duck = false; saveRun();
+  $("pScore").textContent = score.toLocaleString(); $("pWho").textContent = `${runWho}'s run is saved`;
+  $("pauseCard").hidden = false; setTimeout(() => $("resume").focus({ preventScroll: true }), 50);
+}
+function resume(){
+  if(state !== "paused") return;
+  $("pauseCard").hidden = true; state = "play"; ready = 1.5; last = performance.now();
+  try { AC && AC.resume && AC.resume(); } catch(e){}
+}
+function endRun(){ if(state === "paused"){ state = "play"; crash(); } }
+document.addEventListener("visibilitychange", () => { if(document.hidden){ pause(); saveRun(); } });
+addEventListener("pagehide", () => { pause(); saveRun(); });
+$("resume").addEventListener("click", resume);
+$("endRun").addEventListener("click", endRun);
+/* Back gesture / Back button guard: during a run the first "back" pauses instead of leaving */
+let guarded = false;
+function guardBack(){ if(guarded) return; try { history.pushState({ run: 1 }, ""); guarded = true; } catch(e){} }
+addEventListener("popstate", () => {
+  guarded = false;
+  if(state === "play" || state === "paused"){ pause(); guardBack(); }
+  else history.back();                 // not playing: back means leave, as usual
+});
 function down(e){
   if(state === "play") jump(); else if(state === "start" && e && e.target && e.target.closest(".card")) return; else if(state === "over" && !$("overCard").hidden && !(e && e.target && e.target.closest(".card"))) start();
 }
@@ -1010,7 +1074,8 @@ addEventListener("keydown", e => {
     if(ae && ae.closest && ae.closest(".card button, #bar button") && !ae.matches("#play, #again") && state !== "play") return;
     if(!$("skinCard").hidden) return;
     e.preventDefault();
-    if(state === "play") jump(); else start();
+    if(state === "play") jump(); else if(state === "paused") resume(); else start();
+  } else if((k === "p" || k === "P" || k === "Escape") && state === "play"){ e.preventDefault(); pause();
   } else if(k === "ArrowDown" || k === "s" || k === "S"){ e.preventDefault(); dog.duck = true; dog.holding = false; }
 });
 addEventListener("keyup", e => {
@@ -1024,7 +1089,7 @@ addEventListener("blur", () => { dog.holding = false; dog.duck = false; });
 const touch = matchMedia("(hover:none)").matches;
 $("how").innerHTML = touch ? "Tap to jump (hold for higher) · swipe down or tap the bottom of the screen to duck"
   : "Space / ↑ / OK to jump (hold for higher) · ↓ to duck";
-renderWho(); renderBoard(); resize(); sync();
+recoverRun(); renderWho(); renderBoard(); resize(); sync();
 requestAnimationFrame(frame);
 setTimeout(() => $("play").focus({ preventScroll: true }), 100);
 </script>
