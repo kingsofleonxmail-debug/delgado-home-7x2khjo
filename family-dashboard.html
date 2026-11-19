@@ -1768,6 +1768,7 @@ async function pullState(){
       COUNTDOWNS = data.countdowns; store.set("fd-countdowns", COUNTDOWNS); renderCountdowns(); }
     if(momChanged){ renderMom(); renderUpcoming(); renderWeekend(); }
     if("grill" in data) renderGrill(data.grill);
+    if("shelly" in data) applyShellyState(data.shelly);
     setSync(true);
   }catch(e){ setSync(false); }
 }
@@ -1815,23 +1816,24 @@ $("doorList").addEventListener("click", e => {
   if(el && DOOR_IMG[el.dataset.dimg]) window.open("https://drive.google.com/file/d/" + encodeURIComponent(el.dataset.dimg) + "/view", "_blank");
 });
 
-// ===== Christmas lights (Shelly Plug US Gen4) =====
-const SHELLY = { ip: "192.168.1.46", on: null, busy: false };
-async function shellyRpc(method, params){
-  const r = await fetch(`http://${SHELLY.ip}/rpc`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: 1, method, params: params || {} })
-  });
-  return (await r.json()).result;
+// ===== Christmas lights (Shelly Plug — relayed through Google Script + TV) =====
+// The dashboard can't reach the Shelly directly (HTTPS→HTTP blocked by browsers).
+// Instead: dashboard → Google Script (command queue) → TV polls & executes → reports back.
+const SHELLY = { on: null, busy: false, pending: false, ts: 0 };
+function applyShellyState(d){
+  if(!d || typeof d !== "object") return;
+  if(d.on === true || d.on === false) SHELLY.on = d.on;
+  if("pending" in d) SHELLY.pending = d.pending;
+  if(d.ts) SHELLY.ts = d.ts;
+  renderLights();
+  navSoon();
 }
 async function shellyStatus(){
   try {
-    const st = await shellyRpc("Switch.GetStatus", { id: 0 });
-    SHELLY.on = st.output;
-    renderLights();
-    navSoon();
+    const d = await api({ action:"shelly", op:"status" });
+    applyShellyState(d);
   } catch(e) {
-    $("lightsStatus").textContent = "Cannot reach plug — are you on Wi-Fi?";
+    $("lightsStatus").textContent = "Cannot reach server";
     $("lightsBtn").textContent = "❌ Offline";
   }
 }
@@ -1840,11 +1842,22 @@ async function shellyToggle(){
   SHELLY.busy = true;
   const want = !SHELLY.on;
   $("lightsBtn").textContent = "⏳ " + (want ? "Turning on…" : "Turning off…");
+  $("lightsStatus").textContent = "Sending to TV…";
   try {
-    await shellyRpc("Switch.Set", { id: 0, on: want });
-    SHELLY.on = want;
+    const d = await api({ action:"shelly", op:"toggle" });
+    SHELLY.pending = true;
     renderLights();
     navSoon();
+    // Poll quickly until the TV picks it up (every 3s for 30s)
+    let polls = 0;
+    const quick = setInterval(async ()=>{
+      polls++;
+      try {
+        const s = await api({ action:"shelly", op:"status" });
+        applyShellyState(s);
+        if(!s.pending || polls >= 10){ clearInterval(quick); }
+      } catch(e){ clearInterval(quick); }
+    }, 3000);
   } catch(e) {
     $("lightsStatus").textContent = "Error: " + (e.message || e);
   }
@@ -1852,17 +1865,30 @@ async function shellyToggle(){
 }
 function renderLights(){
   const btn = $("lightsBtn"), tag = $("lightsTag"), st = $("lightsStatus");
-  if(SHELLY.on){
+  if(SHELLY.pending){
+    btn.textContent = "⏳ Waiting for TV to flip the switch…";
+    btn.style.background = "linear-gradient(135deg,#4a3a1a,#8b7a2d)";
+    btn.style.borderColor = "#fbbf24";
+    tag.textContent = "PENDING"; tag.className = "tag";
+    st.textContent = "Command queued — the TV will execute it shortly";
+    return;
+  }
+  if(SHELLY.on === true){
     btn.textContent = "🎄 Lights are ON — tap to turn off";
     btn.style.background = "linear-gradient(135deg,#1a5c1a,#2d8b2d)";
     btn.style.borderColor = "#34d399";
     tag.textContent = "ON"; tag.className = "tag good";
-    st.textContent = "Plug is on and responding";
-  } else {
+    st.textContent = SHELLY.ts ? "Last update: " + new Date(SHELLY.ts).toLocaleTimeString() : "Plug is on";
+  } else if(SHELLY.on === false){
     btn.textContent = "💡 Lights are OFF — tap to turn on";
     btn.style.background = ""; btn.style.borderColor = "";
     tag.textContent = "OFF"; tag.className = "tag";
-    st.textContent = "Plug is off";
+    st.textContent = SHELLY.ts ? "Last update: " + new Date(SHELLY.ts).toLocaleTimeString() : "Plug is off";
+  } else {
+    btn.textContent = "❓ Unknown — tap to request status";
+    btn.style.background = ""; btn.style.borderColor = "";
+    tag.textContent = "?"; tag.className = "tag";
+    st.textContent = "Waiting for TV to report";
   }
 }
 $("lightsBtn").addEventListener("click", shellyToggle);

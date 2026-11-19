@@ -70,7 +70,7 @@ function doPost(e) {
   if (body.action === "state") {
     const days = Math.min(Number(body.days) || 8, 31);
     return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
-                  shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns(), grill: readGrill() });
+                  shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns(), grill: readGrill(), shelly: readShelly() });
   }
   if (body.action === "doorbell") return handleDoorbell(body);   // before the log ops: it uses "op" too
   if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
@@ -87,6 +87,7 @@ function doPost(e) {
   if (body.action === "speak") return handleSpeak(body);
   if (body.action === "game") return handleGame(body);
   if (body.action === "grill") return handleGrill(body);
+  if (body.action === "shelly") return handleShelly(body);
 
   // Dashboard taps: {date, k, t, v} \u2014 v is the tick time (ms) or false to untick
   const date = body.date, k = Number(body.k), t = Number(body.t);
@@ -269,6 +270,61 @@ function handleGrill(b) {
     if (!cache.get(k)) { cache.put(k, "1", 1800); sendAlert(alert); }
   }
   return json({ ok: true });
+}
+
+// ---------- Christmas lights (Shelly plug relay) ----------
+// The dashboard can't reach the Shelly directly (HTTPS → HTTP blocked), so it queues
+// commands here. The TV (My TV Home) polls for pending commands, executes them on the
+// local network, and reports the result back.
+//   op:"toggle"  — dashboard wants to flip the switch (queues a command for the TV)
+//   op:"status"  — dashboard asks for current state (returns last-known from TV)
+//   op:"report"  — TV reports the actual state after executing locally
+//   op:"poll"    — TV checks for a pending command to execute
+function handleShelly(b) {
+  const props = PropertiesService.getScriptProperties();
+  const op = String(b.op || "status");
+
+  if (op === "toggle") {
+    // Dashboard wants to toggle — figure out the desired state and queue it
+    const cur = props.getProperty("shelly_on");
+    const want = cur === "true" ? "false" : "true";
+    props.setProperty("shelly_cmd", want);             // pending command for the TV
+    props.setProperty("shelly_cmd_at", String(Date.now()));
+    return json({ ok: true, queued: want === "true", on: cur === "true", ts: Number(props.getProperty("shelly_ts") || 0) });
+  }
+
+  if (op === "report") {
+    // TV reports the actual switch state after executing the command
+    const on = b.on === true;
+    props.setProperty("shelly_on", String(on));
+    props.setProperty("shelly_ts", String(Date.now()));
+    props.deleteProperty("shelly_cmd");                 // command fulfilled
+    props.deleteProperty("shelly_cmd_at");
+    return json({ ok: true });
+  }
+
+  if (op === "poll") {
+    // TV checks for a pending command; if the command is older than 2 min it's stale — drop it
+    const cmd = props.getProperty("shelly_cmd");
+    const cmdAt = Number(props.getProperty("shelly_cmd_at") || 0);
+    if (cmd && Date.now() - cmdAt < 120000) {
+      return json({ cmd: cmd === "true" });             // tell TV to switch on (true) or off (false)
+    }
+    // No pending command (or stale) — clean up
+    if (cmd) { props.deleteProperty("shelly_cmd"); props.deleteProperty("shelly_cmd_at"); }
+    return json({});
+  }
+
+  // Default: return the last-known status (op:"status" or anything else)
+  return json(readShelly());
+}
+
+function readShelly() {
+  const props = PropertiesService.getScriptProperties();
+  const on = props.getProperty("shelly_on");
+  const ts = Number(props.getProperty("shelly_ts") || 0);
+  const cmd = props.getProperty("shelly_cmd");
+  return { on: on === "true" ? true : on === "false" ? false : null, ts: ts, pending: !!cmd };
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
