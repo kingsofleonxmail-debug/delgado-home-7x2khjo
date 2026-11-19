@@ -1847,7 +1847,9 @@ async function shellyToggle(){
   $("lightsBtn").textContent = "⏳ " + (want ? "Turning on…" : "Turning off…");
   $("lightsStatus").textContent = "Sending to TV…";
   try {
-    await api({ action:"shelly", op:"set", on: want });
+    const r = await api({ action:"shelly", op:"set", on: want });
+    // An older Google script doesn't know "set" yet (it just returns the status): fall back to "toggle"
+    if(!r || !("queued" in r)) await api({ action:"shelly", op:"toggle" });
     SHELLY.pending = true; SHELLY.timedOut = false; SHELLY.error = "";
     renderLights();
     navSoon();
