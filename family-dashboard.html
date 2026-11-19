@@ -796,6 +796,15 @@ body.scrolled .slimbar{transform:none;visibility:visible}
       <div class="note" id="doorNote">Clips save to the <b>Doorbell</b> folder in Google Drive. Photos open full size when you tap them.</div>
     </section>
       </div>
+      <div class="view" data-view="lights">
+    <section class="panel">
+      <div class="ph"><div><div class="pt">🎄 Christmas lights</div><div class="ps">Shelly plug — tap the switch to toggle</div></div><span class="tag" id="lightsTag"></span></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:1.2rem;padding:1.2rem 0">
+        <button type="button" id="lightsBtn" class="btn primary" style="font-size:1.1rem;padding:.9rem 2.4rem;border-radius:14px;min-width:10rem">⏳ Checking…</button>
+        <div class="ps" id="lightsStatus">Contacting plug…</div>
+      </div>
+    </section>
+      </div>
       <div class="view" data-view="countdown">
     <section class="panel" id="cdPanel">
       <div class="ph"><div><div class="pt">Countdowns</div><div class="ps">Set by Dad &amp; Mom — the nearest shows at the top</div></div></div>
@@ -1806,6 +1815,60 @@ $("doorList").addEventListener("click", e => {
   if(el && DOOR_IMG[el.dataset.dimg]) window.open("https://drive.google.com/file/d/" + encodeURIComponent(el.dataset.dimg) + "/view", "_blank");
 });
 
+// ===== Christmas lights (Shelly Plug US Gen4) =====
+const SHELLY = { ip: "192.168.1.46", on: null, busy: false };
+async function shellyRpc(method, params){
+  const r = await fetch(`http://${SHELLY.ip}/rpc`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: 1, method, params: params || {} })
+  });
+  return (await r.json()).result;
+}
+async function shellyStatus(){
+  try {
+    const st = await shellyRpc("Switch.GetStatus", { id: 0 });
+    SHELLY.on = st.output;
+    renderLights();
+    navSoon();
+  } catch(e) {
+    $("lightsStatus").textContent = "Cannot reach plug — are you on Wi-Fi?";
+    $("lightsBtn").textContent = "❌ Offline";
+  }
+}
+async function shellyToggle(){
+  if(SHELLY.busy) return;
+  SHELLY.busy = true;
+  const want = !SHELLY.on;
+  $("lightsBtn").textContent = "⏳ " + (want ? "Turning on…" : "Turning off…");
+  try {
+    await shellyRpc("Switch.Set", { id: 0, on: want });
+    SHELLY.on = want;
+    renderLights();
+    navSoon();
+  } catch(e) {
+    $("lightsStatus").textContent = "Error: " + (e.message || e);
+  }
+  SHELLY.busy = false;
+}
+function renderLights(){
+  const btn = $("lightsBtn"), tag = $("lightsTag"), st = $("lightsStatus");
+  if(SHELLY.on){
+    btn.textContent = "🎄 Lights are ON — tap to turn off";
+    btn.style.background = "linear-gradient(135deg,#1a5c1a,#2d8b2d)";
+    btn.style.borderColor = "#34d399";
+    tag.textContent = "ON"; tag.className = "tag good";
+    st.textContent = "Plug is on and responding";
+  } else {
+    btn.textContent = "💡 Lights are OFF — tap to turn on";
+    btn.style.background = ""; btn.style.borderColor = "";
+    tag.textContent = "OFF"; tag.className = "tag";
+    st.textContent = "Plug is off";
+  }
+}
+$("lightsBtn").addEventListener("click", shellyToggle);
+shellyStatus();
+setInterval(shellyStatus, 60000);
+
 async function pullCalendar(){
   if(!CONFIG.syncUrl) return;
   try{
@@ -1861,6 +1924,7 @@ const SECTIONS = [
   ["shop","🛒","Shopping list","Shopping"],
   ["weather","🌤️","Weekend & weather","Weather"],
   ["door","🚪","Front door","Door"],
+  ["lights","🎄","Christmas lights","Lights"],
   ["countdown","⭐","Countdowns","Countdown"]
 ];
 const txt = sel => { const el = document.querySelector(sel); return el ? el.textContent.trim() : ""; };
@@ -1911,6 +1975,7 @@ function summary(id){
     const lt = `${last.kind === "ring" ? "Rang" : "Person"} ${doorWhen(last.ts)}`;
     return { line: `${today.length} today · last: ${lt}`, big: fresh ? (last.kind === "ring" ? "Ding dong!" : "Someone's there") : `${today.length} today`, sub: "Last: " + lt, cls: fresh ? "hot" : "" };
   }
+  if(id === "lights"){ return { line: SHELLY.on === true ? "Lights are ON" : SHELLY.on === false ? "Lights are OFF" : "Tap to check", big: SHELLY.on ? "ON" : "OFF", sub: SHELLY.on ? "Shelly plug is on" : "Shelly plug is off", cls: SHELLY.on ? "hot" : "" }; }
   if(id === "countdown"){ const n = txt("#kCd"), t = txt("#kCdTag"); return { line: t ? `${n} to ${t}` : "Nothing set", big: n, sub: t ? "to " + t : "Add one", cls:"" }; }
   return { line:"", big:"", sub:"", cls:"" };
 }
@@ -1958,6 +2023,7 @@ function showSection(id, opts = {}){
   if(id === "weather") renderWeather();
   if(id === "pets" || id === "nap") renderLogs();
   if(id === "door"){ renderDoor(); pullVisitors(); }
+  if(id === "lights") shellyStatus();
   if(!opts.keepScroll) $("stage").scrollTop = 0;
   if(isPhone() && opts.open){
     const wasViewing = document.body.classList.contains("viewing");
