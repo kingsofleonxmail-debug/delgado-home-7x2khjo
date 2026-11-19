@@ -1819,12 +1819,15 @@ $("doorList").addEventListener("click", e => {
 // ===== Christmas lights (Shelly Plug — relayed through Google Script + TV) =====
 // The dashboard can't reach the Shelly directly (HTTPS→HTTP blocked by browsers).
 // Instead: dashboard → Google Script (command queue) → TV polls & executes → reports back.
-const SHELLY = { on: null, busy: false, pending: false, ts: 0 };
+const SHELLY = { on: null, busy: false, pending: false, ts: 0, seen: 0, error: "", timedOut: false };
 function applyShellyState(d){
   if(!d || typeof d !== "object") return;
   if(d.on === true || d.on === false) SHELLY.on = d.on;
   if("pending" in d) SHELLY.pending = d.pending;
   if(d.ts) SHELLY.ts = d.ts;
+  if("seen" in d) SHELLY.seen = d.seen || 0;
+  if("error" in d) SHELLY.error = d.error || "";
+  if(!SHELLY.pending) SHELLY.timedOut = false;
   renderLights();
   navSoon();
 }
@@ -1840,22 +1843,23 @@ async function shellyStatus(){
 async function shellyToggle(){
   if(SHELLY.busy) return;
   SHELLY.busy = true;
-  const want = !SHELLY.on;
+  const want = SHELLY.on !== true;   // unknown or off → turn on
   $("lightsBtn").textContent = "⏳ " + (want ? "Turning on…" : "Turning off…");
   $("lightsStatus").textContent = "Sending to TV…";
   try {
-    const d = await api({ action:"shelly", op:"toggle" });
-    SHELLY.pending = true;
+    await api({ action:"shelly", op:"set", on: want });
+    SHELLY.pending = true; SHELLY.timedOut = false; SHELLY.error = "";
     renderLights();
     navSoon();
-    // Poll quickly until the TV picks it up (every 3s for 30s)
+    // Check every 3s until the TV has done it (the TV looks for commands every 10s)
     let polls = 0;
     const quick = setInterval(async ()=>{
       polls++;
       try {
         const s = await api({ action:"shelly", op:"status" });
         applyShellyState(s);
-        if(!s.pending || polls >= 10){ clearInterval(quick); }
+        if(!s.pending){ clearInterval(quick); }
+        else if(polls >= 15){ clearInterval(quick); SHELLY.timedOut = true; renderLights(); }
       } catch(e){ clearInterval(quick); }
     }, 3000);
   } catch(e) {
@@ -1865,6 +1869,20 @@ async function shellyToggle(){
 }
 function renderLights(){
   const btn = $("lightsBtn"), tag = $("lightsTag"), st = $("lightsStatus");
+  if(SHELLY.pending && SHELLY.timedOut){
+    btn.textContent = "📺 TV didn't answer — tap to try again";
+    btn.style.background = ""; btn.style.borderColor = "#f87171";
+    tag.textContent = "NO TV"; tag.className = "tag";
+    st.textContent = SHELLY.seen ? "TV last checked in " + new Date(SHELLY.seen).toLocaleTimeString() + ". Is it plugged in and on Wi-Fi?" : "The TV hasn't checked in yet. Update My TV Home and make sure it's on.";
+    return;
+  }
+  if(SHELLY.error){
+    btn.textContent = "⚠️ TV can't reach the plug — tap to retry";
+    btn.style.background = ""; btn.style.borderColor = "#f87171";
+    tag.textContent = "PLUG?"; tag.className = "tag";
+    st.textContent = SHELLY.error;
+    return;
+  }
   if(SHELLY.pending){
     btn.textContent = "⏳ Waiting for TV to flip the switch…";
     btn.style.background = "linear-gradient(135deg,#4a3a1a,#8b7a2d)";

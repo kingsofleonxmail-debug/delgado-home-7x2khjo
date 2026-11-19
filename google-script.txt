@@ -284,26 +284,33 @@ function handleShelly(b) {
   const props = PropertiesService.getScriptProperties();
   const op = String(b.op || "status");
 
-  if (op === "toggle") {
-    // Dashboard wants to toggle — figure out the desired state and queue it
+  if (op === "toggle" || op === "set") {
+    // Dashboard says exactly what it wants (op:"set", on:true/false); "toggle" is kept for older pages
     const cur = props.getProperty("shelly_on");
-    const want = cur === "true" ? "false" : "true";
+    const want = op === "set" ? String(b.on === true) : (cur === "true" ? "false" : "true");
+    props.deleteProperty("shelly_err");
     props.setProperty("shelly_cmd", want);             // pending command for the TV
     props.setProperty("shelly_cmd_at", String(Date.now()));
     return json({ ok: true, queued: want === "true", on: cur === "true", ts: Number(props.getProperty("shelly_ts") || 0) });
   }
 
   if (op === "report") {
-    // TV reports the actual switch state after executing the command
-    const on = b.on === true;
-    props.setProperty("shelly_on", String(on));
-    props.setProperty("shelly_ts", String(Date.now()));
-    props.deleteProperty("shelly_cmd");                 // command fulfilled
+    // TV reports the plug's real state (or that it couldn't reach the plug)
+    props.setProperty("shelly_seen", String(Date.now()));   // the TV is alive
+    if (typeof b.error === "string" && b.error) {
+      props.setProperty("shelly_err", b.error.slice(0, 160));
+    } else if (b.on === true || b.on === false) {
+      props.setProperty("shelly_on", String(b.on));
+      props.setProperty("shelly_ts", String(Date.now()));
+      props.deleteProperty("shelly_err");
+    }
+    props.deleteProperty("shelly_cmd");                 // command handled
     props.deleteProperty("shelly_cmd_at");
     return json({ ok: true });
   }
 
   if (op === "poll") {
+    props.setProperty("shelly_seen", String(Date.now()));   // the TV is alive
     // TV checks for a pending command; if the command is older than 2 min it's stale — drop it
     const cmd = props.getProperty("shelly_cmd");
     const cmdAt = Number(props.getProperty("shelly_cmd_at") || 0);
@@ -324,7 +331,11 @@ function readShelly() {
   const on = props.getProperty("shelly_on");
   const ts = Number(props.getProperty("shelly_ts") || 0);
   const cmd = props.getProperty("shelly_cmd");
-  return { on: on === "true" ? true : on === "false" ? false : null, ts: ts, pending: !!cmd };
+  const cmdAt = Number(props.getProperty("shelly_cmd_at") || 0);
+  return { on: on === "true" ? true : on === "false" ? false : null, ts: ts,
+           pending: !!cmd && Date.now() - cmdAt < 120000,
+           seen: Number(props.getProperty("shelly_seen") || 0),     // last time the TV checked in
+           error: props.getProperty("shelly_err") || "" };
 }
 
 function fmtTime(ms) { return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), "h:mm a"); }
