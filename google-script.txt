@@ -1198,7 +1198,7 @@ function doorUploadLink(b) {
   const name = String(b.name || "clip.mp4").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
   const mime = /^[\w.+-]+\/[\w.+-]+$/.test(String(b.mime || "")) ? b.mime : "video/mp4";
   const tz = Session.getScriptTimeZone(), day = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
-  const folder = doorFolder(["Clips", day]);
+  const folder = doorFolder([b.folder === "night" ? "Night" : "Clips", day]);
   const headers = { Authorization: "Bearer " + ScriptApp.getOAuthToken(), "X-Upload-Content-Type": mime };
   if (Number(b.size) > 0) headers["X-Upload-Content-Length"] = String(Math.round(Number(b.size)));
   const res = UrlFetchApp.fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id", {
@@ -1303,10 +1303,10 @@ function setupDoorbell() {
 }
 
 // ---------- Front door clip helpers ----------
-function clipsFolderId() {
-  const cache = CacheService.getScriptCache();
-  let id = cache.get("clips-folder");
-  if (!id) { id = doorFolder(["Clips"]).getId(); cache.put("clips-folder", id, 21600); }
+function clipsFolderId(which) {
+  const name = which === "night" ? "Night" : "Clips", cache = CacheService.getScriptCache();
+  let id = cache.get("clips-folder-" + name);
+  if (!id) { id = doorFolder([name]).getId(); cache.put("clips-folder-" + name, id, 21600); }
   return id;
 }
 
@@ -1321,6 +1321,7 @@ function driveGet(path) {
 // Every few minutes, new doorbell clips in Drive (Doorbell > Clips) are copied into a Google Photos album
 // called "Front Door". Watch, download or delete them in the Google Photos app. Setup: see setupPhotos below.
 const PHOTOS_ALBUM_NAME = "Front Door";
+const NIGHT_ALBUM_NAME = "Night Watch";   // the cameras' person and animal clips from 11 PM to 7 AM, copied each morning by the TV
 const PHOTOS_TRASH_DRIVE_COPY = true;    // each Drive copy goes to the Drive trash once it's safely in Photos (Photos is the copy you keep)
 const PHOTOS_MAX_BYTES = 400 * 1024 * 1024;  // bigger clips stay in Drive only
 const PHOTOS_PIECE = 8 * 1024 * 1024;        // moved 8 MB at a time so the script never runs out of memory
@@ -1355,25 +1356,35 @@ function photosApi(method, path, body) {
   return JSON.parse(text || "{}");
 }
 
-function photosAlbum() {
+function photosAlbum(which) {
+  const night = which === "night", key = night ? "photos-album-night" : "photos-album";
   const props = PropertiesService.getScriptProperties();
-  const saved = props.getProperty("photos-album");
+  const saved = props.getProperty(key);
   if (saved) return JSON.parse(saved);
-  const a = photosApi("post", "albums", { album: { title: PHOTOS_ALBUM_NAME } });
+  const a = photosApi("post", "albums", { album: { title: night ? NIGHT_ALBUM_NAME : PHOTOS_ALBUM_NAME } });
   const album = { id: a.id, url: a.productUrl };
-  props.setProperty("photos-album", JSON.stringify(album));
+  props.setProperty(key, JSON.stringify(album));
   return album;
 }
 
 function copyClipsToPhotos() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;                     // the last run is still going
-  const started = Date.now(), props = PropertiesService.getScriptProperties();
+  const started = Date.now();
   try {
-    const since = Number(props.getProperty("photos-since")) || Date.now() - 864e5;
+    copyFolderToPhotos("door", started);
+    copyFolderToPhotos("night", started);
+  } finally { lock.releaseLock(); }
+}
+
+function copyFolderToPhotos(which, started) {
+  const props = PropertiesService.getScriptProperties(), night = which === "night";
+  const sinceKey = night ? "photos-since-night" : "photos-since";
+  try {
+    const since = Number(props.getProperty(sinceKey)) || Date.now() - 2 * 864e5;
     const tz = Session.getScriptTimeZone();
     // Day folders that could hold clips newer than "since"
-    const q1 = "'" + clipsFolderId() + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+    const q1 = "'" + clipsFolderId(which) + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
     const firstDay = Utilities.formatDate(new Date(since - 864e5), tz, "yyyy-MM-dd");
     const days = (driveGet("files?pageSize=1000&fields=files(id,name)&q=" + encodeURIComponent(q1)).files || [])
       .filter(function (f) { return /^\d{4}-\d{2}-\d{2}$/.test(f.name) && f.name >= firstDay; });
@@ -1382,7 +1393,7 @@ function copyClipsToPhotos() {
                " and mimeType contains 'video/' and createdTime > '" + new Date(since).toISOString() + "'";
     const files = driveGet("files?pageSize=200&orderBy=createdTime&fields=files(id,name,size,createdTime)&q=" + encodeURIComponent(q2)).files || [];
     if (!files.length) return;
-    const album = photosAlbum();
+    const album = photosAlbum(which);
     let done = 0, skipped = 0;
     for (let i = 0; i < files.length; i++) {
       if (Date.now() - started > 4 * 60e3) break;     // pick up the rest next run
@@ -1394,19 +1405,19 @@ function copyClipsToPhotos() {
         const token = photosUploadInPieces(f);
         const when = Utilities.formatDate(new Date(ts), tz, "EEE MMM d, h:mm a");
         const r = photosApi("post", "mediaItems:batchCreate", { albumId: album.id, newMediaItems: [{
-          description: "Front door \u00B7 " + when, simpleMediaItem: { uploadToken: token, fileName: f.name } }] });
+          description: (night ? "Night Watch \u00B7 " + f.name.replace(/\s*\d{4}-\d{2}-\d{2}.*$/, "") + " \u00B7 " : "Front door \u00B7 ") + when, simpleMediaItem: { uploadToken: token, fileName: f.name } }] });
         const st = ((r.newMediaItemResults || [])[0] || {}).status || {};
         if (st.code && st.code !== 0) throw new Error("Photos refused " + f.name + ": " + (st.message || st.code));
         if (PHOTOS_TRASH_DRIVE_COPY) { try { DriveApp.getFileById(f.id).setTrashed(true); } catch (e) {} }
         done++;
       }
-      props.setProperty("photos-since", String(ts));     // only moves forward once this clip is handled
+      props.setProperty(sinceKey, String(ts));     // only moves forward once this clip is handled
     }
-    if (done || skipped) console.log("Copied " + done + " clip(s) to Google Photos" + (skipped ? ", " + skipped + " too big" : ""));
+    if (done || skipped) console.log("Copied " + done + " " + which + " clip(s) to Google Photos" + (skipped ? ", " + skipped + " too big" : ""));
   } catch (err) {
-    console.log("Photos copy problem: " + err);
-    props.setProperty("photos-last-error", Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM d h:mm a") + " " + String(err).slice(0, 300));
-  } finally { lock.releaseLock(); }
+    console.log("Photos copy problem (" + which + "): " + err);
+    props.setProperty("photos-last-error", Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM d h:mm a") + " " + which + " " + String(err).slice(0, 300));
+  }
 }
 
 /** Copies one Drive clip into Google Photos 8 MB at a time. Returns the Photos upload token. */
