@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Copy the family script</title>
+<style>
+body{margin:0;background:#060b18;color:#e5e7eb;font:16px system-ui,sans-serif;padding:1.2rem}
+h1{font-size:1.15rem;margin:0 0 .3rem}p{color:#94a3b8;font-size:.9rem;margin:.2rem 0 1rem}
+button{width:100%;padding:1rem;font:700 1.05rem system-ui;border-radius:12px;border:1px solid #22d3ee;background:rgba(34,211,238,.15);color:#22d3ee;cursor:pointer}
+button:disabled{opacity:.5}
+#msg{margin:.8rem 0;font-weight:600;min-height:1.2em}
+textarea{width:100%;height:55vh;box-sizing:border-box;background:#0b1224;color:#cbd5e1;border:1px solid #1e293b;border-radius:10px;padding:.6rem;font:12px ui-monospace,monospace}
+</style></head><body>
+<h1>📋 Family script — copy &amp; paste</h1>
+<p>Tap Copy, then in Apps Script select everything in the editor, paste over it, save, and deploy a new version.</p>
+<button id="b" disabled>Loading…</button>
+<div id="msg"></div>
+<textarea id="t" readonly spellcheck="false"></textarea>
+<script>
+const b=document.getElementById("b"),t=document.getElementById("t"),m=document.getElementById("msg");
+fetch("google-script.txt?"+Date.now()).then(r=>{if(!r.ok)throw 0;return r.text()}).then(s=>{
+  t.value=s; b.disabled=false; b.textContent="Copy the whole script ("+s.split("\n").length+" lines)";
+}).catch(()=>{b.textContent="Couldn't load — refresh";});
+b.onclick=async()=>{
+  try{await navigator.clipboard.writeText(t.value);}catch(e){t.focus();t.select();document.execCommand("copy");}
+  m.textContent="✅ Copied! Now paste it into Apps Script.";m.style.color="#34d399";
+};
+</script></body></html>
