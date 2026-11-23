@@ -81,6 +81,7 @@ function doPost(e) {
   }
   if (body.action === "events") return json({ events: getEvents() });
   if (body.action === "state") {
+    markWatch();                                   // someone has the dashboard or the family app open
     const days = Math.min(Number(body.days) || 8, 31);
     return json({ checks: readChecks(body.date), logs: readLogs(body.date, days), shop: readShop(),
                   shifts: readShifts(), work: readWork(body.date), countdowns: readCountdowns(), grill: readGrill(), shelly: readShelly() });
@@ -298,6 +299,7 @@ function handleShelly(b) {
   const props = PropertiesService.getScriptProperties();
   const op = String(b.op || "status");
 
+  if (op !== "poll" && op !== "report") markWatch();   // the dashboard is open: the TV checks in quickly for a while
   if (op === "toggle" || op === "set") {
     // Dashboard says exactly what it wants (op:"set", on:true/false); "toggle" is kept for older pages
     const cur = props.getProperty("shelly_on");
@@ -329,11 +331,11 @@ function handleShelly(b) {
     const cmd = props.getProperty("shelly_cmd");
     const cmdAt = Number(props.getProperty("shelly_cmd_at") || 0);
     if (cmd && Date.now() - cmdAt < 120000) {
-      return json({ cmd: cmd === "true" });             // tell TV to switch on (true) or off (false)
+      return json({ cmd: cmd === "true", active: true });   // tell TV to switch on (true) or off (false)
     }
     // No pending command (or stale) — clean up
     if (cmd) { props.deleteProperty("shelly_cmd"); props.deleteProperty("shelly_cmd_at"); }
-    return json({});
+    return json({ active: watching() });
   }
 
   // Default: return the last-known status (op:"status" or anything else)
@@ -1535,6 +1537,7 @@ function handleHouse(b) {
   const op = String(b.op || "");
 
   // ---- from the dashboard ----
+  if (op === "ask" || op === "get" || op === "live" || op === "status") markWatch();
   if (op === "ask") {
     const kind = String(b.kind || "");
     if (HOUSE_KINDS.indexOf(kind) < 0) return json({ error: "unknown job" });
@@ -1583,7 +1586,10 @@ function handleHouse(b) {
       if (jobs.length) cache.remove("house_q");
     } finally { lock.releaseLock(); }
     const live = JSON.parse(cache.get("house_live") || "null");
-    return json({ jobs: jobs, live: live && live.until > Date.now() ? live.ch : -1 });
+    // active: someone is using the dashboard, so the TV keeps checking every few seconds; otherwise it
+    // only checks in about every 30 seconds. alerts: whether to watch the cameras for people at all.
+    return json({ jobs: jobs, live: live && live.until > Date.now() ? live.ch : -1,
+                  active: watching() || jobs.length > 0, alerts: camState().on });
   }
   if (op === "result") {
     const id = String(b.id || "");
@@ -1607,6 +1613,14 @@ function handleHouse(b) {
     return json({ more: !!live && live.until > Date.now() && live.ch === ch });
   }
   return json({ error: "unknown op" });
+}
+
+// The TV checks in quickly (every few seconds) only while someone is actually using the dashboard;
+// the rest of the time it checks in about every 30 seconds, so it isn't hitting this script around the clock.
+function markWatch() { CacheService.getScriptCache().put("dash_watch", String(Date.now()), 600); }
+function watching() {
+  const t = Number(CacheService.getScriptCache().get("dash_watch") || 0);
+  return Date.now() - t < 180000;                 // the last 3 minutes
 }
 
 // A cache value can be at most 100 KB, so pictures are kept in pieces
