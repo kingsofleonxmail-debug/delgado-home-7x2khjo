@@ -55,7 +55,20 @@ const KEEP_LOG_DAYS = 35;           // pets + nap history kept this long
 const LOG_TYPES = ["dogfed", "catfed", "dogsout", "litter", "nap"];
 
 // Visiting the link in a browser just confirms the script is running. Nothing is readable without the code.
-function doGet() {
+function doGet(e) {
+  // One-tap camera alert switches from the buttons on each Telegram camera alert (secret link, no family code)
+  const q = (e && e.parameter) || {};
+  if (q.cam && q.t && q.t === camToken()) {
+    const mode = String(q.cam);
+    camSet(mode === "mute1h" ? "mute1h" : mode === "on" ? "on" : "off");
+    const st = camState();
+    const msg = mode === "on" ? "Camera alerts are back ON." : mode === "mute1h"
+      ? "Camera alerts are muted until " + fmtTime(st.until) + "." : "Camera alerts are OFF until you turn them back on.";
+    const back = mode === "on" ? "" : '<p><a href="?cam=on&t=' + encodeURIComponent(q.t) + '" style="color:#22D3EE">Turn them back on</a></p>';
+    return HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<div style="font:18px system-ui;background:#080D1B;color:#E8EEFB;padding:40px 24px;min-height:100vh">' +
+      '<h2 style="color:#22D3EE">📷 Delgado cameras</h2><p>' + msg + '</p>' + back + '</div>').setTitle("Camera alerts");
+  }
   return json({ status: "running", locked: true });
 }
 
@@ -1173,6 +1186,10 @@ function handleDoorbell(b) {
   if (b.op === "photo") return json({ img: visitorPhoto(String(b.file || "")) });
   if (b.op === "upload") return json(doorUploadLink(b));
   if (b.op === "ring") return json(doorRing(b));
+  // Outdoor cameras (via the TV): person alerts to Telegram, with an easy on / mute / off switch
+  if (b.op === "camera") return json(cameraAlert(b));
+  if (b.op === "camstate") return json(camState());
+  if (b.op === "camset") { camSet(String(b.mode || "")); return json(camState()); }
   return json({ error: "bad op" });
 }
 
@@ -1444,4 +1461,63 @@ function photosUploadInPieces(f) {
     if (last) return up.getContentText();
   }
   throw new Error("Photos upload never finished for " + f.name);
+}
+
+// ---------- Camera person alerts (Telegram) ----------
+// The TV watches the Reolink Home Hub and sends each person it spots here (one per camera every few minutes).
+// cam_mute: "" = alerts on, "off" = off until turned back on, a time = muted until then.
+
+function camToken() {
+  const props = PropertiesService.getScriptProperties();
+  let t = props.getProperty("cam_token");
+  if (!t) { t = Utilities.getUuid().replace(/-/g, ""); props.setProperty("cam_token", t); }
+  return t;
+}
+
+function camState() {
+  const m = PropertiesService.getScriptProperties().getProperty("cam_mute") || "";
+  if (m === "off") return { on: false, until: 0, label: "Off" };
+  const until = Number(m) || 0;
+  if (until > Date.now()) return { on: false, until: until, label: "Muted until " + fmtTime(until) };
+  return { on: true, until: 0, label: "On" };
+}
+
+function camSet(mode) {
+  const props = PropertiesService.getScriptProperties();
+  if (mode === "on") props.deleteProperty("cam_mute");
+  else if (mode === "mute1h") props.setProperty("cam_mute", String(Date.now() + 3600000));
+  else if (mode === "off") props.setProperty("cam_mute", "off");
+}
+
+function cameraAlert(b) {
+  if (!camState().on) return { ok: true, skipped: "alerts are off" };
+  if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID) return { ok: false, error: "Telegram isn't set up" };
+  const name = String(b.camera || "Camera").slice(0, 40), now = Date.now();
+  let caption = "👤 Person at " + name + " · " + fmtTime(now);
+  if (typeof b.said === "string" && b.said.trim()) caption += "\nPablo says: “" + b.said.trim().replace(/^["“]+|["”]+$/g, "").slice(0, 200) + "”";
+  const base = ScriptApp.getService().getUrl() + "?t=" + camToken() + "&cam=";
+  const buttons = JSON.stringify({ inline_keyboard: [[
+    { text: "🔕 Mute 1 hour", url: base + "mute1h" }, { text: "⛔ Turn off", url: base + "off" }]] });
+  let blob = null;
+  if (typeof b.img === "string" && b.img.length > 100 && b.img.length < 2e6) {
+    try { blob = Utilities.newBlob(Utilities.base64Decode(b.img), "image/jpeg", "camera.jpg"); } catch (err) {}
+  }
+  const out = [];
+  TELEGRAM_CHAT_ID.split(",").map(function (c) { return c.trim(); }).filter(Boolean).forEach(function (chat) {
+    try {
+      const r = blob
+        ? UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendPhoto",
+            { method: "post", payload: { chat_id: chat, caption: caption, photo: blob, reply_markup: buttons }, muteHttpExceptions: true })
+        : UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage",
+            { method: "post", payload: { chat_id: chat, text: caption, reply_markup: buttons }, muteHttpExceptions: true });
+      out.push(r.getResponseCode() === 200 ? "sent" : r.getResponseCode() + " " + r.getContentText().slice(0, 100));
+    } catch (err) { out.push(String(err).slice(0, 80)); }
+  });
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const log = JSON.parse(props.getProperty("alert-log") || "[]");
+    log.unshift(fmtTime(now) + " | camera " + name + " | " + out.join(" ; "));
+    props.setProperty("alert-log", JSON.stringify(log.slice(0, 15)));
+  } catch (err) {}
+  return { ok: out.indexOf("sent") >= 0, sent: out };
 }

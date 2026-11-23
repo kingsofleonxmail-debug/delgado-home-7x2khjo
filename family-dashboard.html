@@ -795,6 +795,15 @@ body.scrolled .slimbar{transform:none;visibility:visible}
       <div class="door" id="doorList"><div class="empty">No visitors yet. Rings and people spotted by the doorbell show up here.</div></div>
       <div class="note" id="doorNote">Clips save to the <b>Doorbell</b> folder in Google Drive. Photos open full size when you tap them.</div>
     </section>
+    <section class="panel">
+      <div class="ph"><div><div class="pt">📷 Camera alerts</div><div class="ps">Telegram photo when a camera spots a person</div></div><span class="tag" id="camTag">…</span></div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;padding:.4rem 0 .2rem">
+        <button type="button" class="btn primary" data-cam="on">On</button>
+        <button type="button" class="btn" data-cam="mute1h">Mute 1 hour</button>
+        <button type="button" class="btn" data-cam="off">Off</button>
+      </div>
+      <div class="ps" id="camStatus" style="margin-top:.4rem"></div>
+    </section>
       </div>
       <div class="view" data-view="lights">
     <section class="panel">
@@ -1780,6 +1789,21 @@ function doorWhen(ts){
   const day = ymd(d) === ymd(now) ? "" : ymd(d) === ymd(y) ? "yesterday " : (now - d < 6*864e5 ? DAYS[d.getDay()] + " " : `${d.getMonth()+1}/${d.getDate()} `);
   return day + tstr(ts);
 }
+// ===== Camera person alerts: on / mute 1 hour / off =====
+function renderCam(d){
+  if(!d || typeof d !== "object" || !("on" in d)) return;
+  $("camTag").textContent = d.on ? "ON" : (d.until ? "MUTED" : "OFF");
+  $("camTag").className = "tag" + (d.on ? " good" : "");
+  $("camStatus").textContent = d.on ? "Alerts are on — every camera, all hours." : d.label;
+}
+async function pullCam(){ try { renderCam(await api({ action:"doorbell", op:"camstate" })); } catch(e){} }
+document.querySelectorAll("[data-cam]").forEach(b => b.addEventListener("click", async () => {
+  $("camStatus").textContent = "Saving…";
+  try { renderCam(await api({ action:"doorbell", op:"camset", mode: b.dataset.cam })); }
+  catch(e){ $("camStatus").textContent = "Couldn't save — try again"; }
+}));
+pullCam();
+
 async function pullVisitors(){
   if(!CONFIG.syncUrl) return;
   try{
@@ -2068,7 +2092,7 @@ function showSection(id, opts = {}){
   $("nav").dataset.html = ""; renderNav(); renderDock();
   if(id === "weather") renderWeather();
   if(id === "pets" || id === "nap") renderLogs();
-  if(id === "door"){ renderDoor(); pullVisitors(); }
+  if(id === "door"){ renderDoor(); pullVisitors(); pullCam(); }
   if(id === "lights") shellyStatus();
   if(!opts.keepScroll) $("stage").scrollTop = 0;
   if(isPhone() && opts.open){
