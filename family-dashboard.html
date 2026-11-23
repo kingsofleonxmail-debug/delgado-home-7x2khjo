@@ -344,6 +344,35 @@ body:not(.solo) .dock ~ .aicap,body:not(.solo) .dock ~ #ciSheet{bottom:calc(84px
 .shop .txt{overflow-wrap:anywhere}
 .shopfoot{display:flex;justify-content:flex-end;margin-top:.6rem}
 .btn.small{font-size:.72rem;padding:.4rem .7rem}
+/* ===== House: status strip, cameras, live view, Ask Pablo ===== */
+.hstrip{display:flex;gap:.45rem;flex-wrap:wrap}
+.hchip{display:flex;align-items:center;gap:.4rem;background:var(--panel2);border:1px solid var(--line2);border-radius:999px;padding:.38rem .7rem;font-size:.74rem;font-weight:700;color:var(--text);font-family:inherit;cursor:default}
+button.hchip{cursor:pointer}
+.hchip i{width:.5rem;height:.5rem;border-radius:50%;background:var(--dim);flex:none}
+.hchip.ok i{background:var(--good);box-shadow:0 0 6px var(--good)}
+.hchip.warn i{background:var(--warm)}
+.hchip.bad i{background:var(--bad)}
+.hchip small{font-weight:600;color:var(--dim)}
+.camsel{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 .7rem}
+.camsel button{background:var(--panel2);border:1px solid var(--line2);color:var(--text);font:inherit;font-size:.74rem;font-weight:700;padding:.4rem .7rem;border-radius:999px;cursor:pointer}
+.camsel button.on{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.5rem;margin-top:.7rem}
+.hgrid figure{margin:0;position:relative;border-radius:var(--inner);overflow:hidden;border:1px solid var(--line2);background:#000;cursor:zoom-in}
+.hgrid img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.hgrid figcaption{position:absolute;left:0;right:0;bottom:0;padding:.25rem .45rem;font-size:.66rem;font-weight:700;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+.hmsg{font-size:.8rem;color:var(--dim);margin-top:.55rem;min-height:1em}
+.hmsg.err{color:var(--bad)}
+.liveview{position:relative;margin-top:.7rem;border-radius:var(--inner);overflow:hidden;background:#000;border:1px solid var(--line2)}
+.liveview img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}
+.liveview .lt{position:absolute;top:.45rem;left:.5rem;font-size:.62rem;font-weight:800;letter-spacing:.1em;color:#fff;background:rgba(220,38,38,.85);padding:.15rem .4rem;border-radius:4px}
+.liveview .la{position:absolute;top:.45rem;right:.5rem;font-size:.66rem;color:#fff;background:rgba(0,0,0,.55);padding:.15rem .4rem;border-radius:4px}
+.ptz{display:grid;grid-template-columns:repeat(3,2.6rem);grid-template-rows:repeat(3,2.6rem);gap:.3rem;justify-content:center;margin:.7rem auto .2rem}
+.ptz button{background:var(--panel2);border:1px solid var(--line2);color:var(--text);border-radius:10px;font-size:1rem;cursor:pointer}
+.ptz button:active{background:rgba(var(--accent-rgb),.2)}
+.pablo-ans{margin-top:.7rem;padding:.75rem .9rem;border-radius:var(--inner);border:1px solid rgba(var(--accent-rgb),.4);background:rgba(var(--accent-rgb),.06);font-size:.88rem;line-height:1.45;white-space:pre-wrap}
+.hbig{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:1rem}
+.hbig img{max-width:100%;max-height:100%;border-radius:8px}
+.hbig b{position:absolute;top:.8rem;left:1rem;color:#fff;font-size:.85rem}
 .bins-in{margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}
 
 .lock{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(5,9,20,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
@@ -790,6 +819,46 @@ body.scrolled .slimbar{transform:none;visibility:visible}
     </section>
       </div>
       <div class="view" data-view="door">
+    <section class="panel">
+      <div class="ph"><div><div class="pt">🏠 Home status</div><div class="ps" id="hsSub">Checking the house…</div></div></div>
+      <div class="hstrip" id="hsStrip"></div>
+    </section>
+    <section class="panel">
+      <div class="ph"><div><div class="pt">📸 Cameras</div><div class="ps">Works anywhere — the TV fetches the pictures</div></div><span class="tag" id="camLiveTag" hidden>LIVE</span></div>
+      <div class="camsel" id="camSel"></div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <button type="button" class="btn primary" id="snapBtn">📸 Snapshot</button>
+        <button type="button" class="btn" id="liveBtn">🔴 Live view</button>
+      </div>
+      <div class="hmsg" id="snapMsg"></div>
+      <div class="hgrid" id="snapGrid"></div>
+      <div id="liveBox" hidden>
+        <div class="liveview"><span class="lt">● LIVE</span><span class="la" id="liveAge">connecting…</span><img id="liveImg" alt="Live camera"></div>
+        <div class="ptz">
+          <span></span><button type="button" data-ptz="Up" aria-label="Tilt up">▲</button><span></span>
+          <button type="button" data-ptz="Left" aria-label="Pan left">◀</button><span></span><button type="button" data-ptz="Right" aria-label="Pan right">▶</button>
+          <span></span><button type="button" data-ptz="Down" aria-label="Tilt down">▼</button><span></span>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+          <button type="button" class="btn small" data-spot="1">💡 Spotlight on</button>
+          <button type="button" class="btn small" data-spot="0">Spotlight off</button>
+          <button type="button" class="btn small" id="sirenBtn" style="color:var(--bad)">🚨 Siren</button>
+          <button type="button" class="btn small" id="liveStop">Stop</button>
+        </div>
+        <div class="note">About a picture a second, for 2 minutes at a time (it uses the camera's battery). For full-motion video, turn on Tailscale on your phone and open <a href="https://192.168.1.10" target="_blank" rel="noopener">the hub</a>.</div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ph"><div><div class="pt">🎩 Ask Pablo</div><div class="ps">Pablo looks at the cameras and answers · needs the gaming PC on</div></div></div>
+      <form class="addrow" id="pabloForm" autocomplete="off"><input id="pabloQ" maxlength="300" placeholder="e.g. Is the garbage can at the curb?" enterkeyhint="send" aria-label="Question for Pablo"><button class="btn primary" type="submit">Ask</button></form>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn" id="perimBtn">🛡️ Perimeter check</button>
+        <label class="ps" style="display:flex;align-items:center;gap:.35rem"><input type="checkbox" id="pabloLook" checked> Look at the cameras</label>
+      </div>
+      <div class="hmsg" id="pabloMsg"></div>
+      <div class="pablo-ans" id="pabloAns" hidden></div>
+      <div class="hgrid" id="pabloGrid"></div>
+    </section>
     <section class="panel">
       <div class="ph"><div><div class="pt">Front door</div><div class="ps" id="doorSub">Who came by — photos from the doorbell</div></div><span class="tag acc" id="doorTag" hidden></span></div>
       <div class="door" id="doorList"><div class="empty">No visitors yet. Rings and people spotted by the doorbell show up here.</div></div>
@@ -1835,6 +1904,155 @@ async function loadDoorImg(file){
     $("doorList").dataset.html = "";
   }catch(e){ delete DOOR_IMG[file]; }
 }
+// ===== House relay: status strip, snapshots, live view, Ask Pablo =====
+// The dashboard leaves a job with the family server; the TV (at home) does it and posts the answer back.
+var HOUSE = { cams: [], ch: -1, liveOn: false, liveSince: 0, liveTimer: null, liveStart: 0, busy: false, status: null };
+const agoText = ms => { const m = Math.floor(ms / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago"; };
+async function houseJob(params, msgEl){
+  const r0 = await api({ action:"house", op:"ask", ...params });
+  if(!r0.id) throw new Error(r0.error || "Couldn't start");
+  let waiting = 0;
+  for(let i = 0; i < 90; i++){
+    await new Promise(r => setTimeout(r, 2000));
+    const r = await api({ action:"house", op:"get", id: r0.id });
+    if(r.done) return r;
+    if(msgEl && r.text) msgEl.textContent = r.text;
+    if(r.text === "Waiting for the TV…" && ++waiting > 12) throw new Error("The TV didn't pick it up. Is it on and connected?");
+  }
+  throw new Error("Took too long. Try again.");
+}
+function showBig(src, label){
+  const d = document.createElement("div"); d.className = "hbig";
+  d.innerHTML = "<b>" + esc(label || "") + "</b><img alt=''>"; d.querySelector("img").src = src;
+  d.addEventListener("click", () => d.remove()); document.body.appendChild(d);
+}
+function renderPics(el, imgs){
+  el.innerHTML = (imgs || []).filter(x => x.img).map((x, i) =>
+    "<figure data-i='" + i + "'><img alt='" + esc(x.label) + "' src='data:image/jpeg;base64," + x.img + "'><figcaption>" + esc(x.label) + "</figcaption></figure>").join("");
+}
+["snapGrid","pabloGrid"].forEach(id => $(id).addEventListener("click", e => {
+  const f = e.target.closest("figure"); if(!f) return;
+  showBig(f.querySelector("img").src, f.querySelector("figcaption").textContent);
+}));
+
+function renderCamSel(){
+  const cams = HOUSE.cams;
+  if(HOUSE.ch >= 0 && !cams.some(c => c.ch === HOUSE.ch)) HOUSE.ch = -1;
+  $("camSel").innerHTML = "<button type='button' data-ch='-1' class='" + (HOUSE.ch < 0 ? "on" : "") + "'>All cameras</button>" +
+    cams.map(c => "<button type='button' data-ch='" + c.ch + "' class='" + (HOUSE.ch === c.ch ? "on" : "") + "'>" + esc(c.name) + (c.online ? "" : " (offline)") + "</button>").join("");
+  $("liveBtn").disabled = HOUSE.ch < 0;
+  $("liveBtn").title = HOUSE.ch < 0 ? "Pick one camera for live view" : "";
+}
+$("camSel").addEventListener("click", e => {
+  const b = e.target.closest("[data-ch]"); if(!b) return;
+  HOUSE.ch = Number(b.dataset.ch); renderCamSel();
+  if(HOUSE.liveOn){ if(HOUSE.ch < 0) stopLive(); else { HOUSE.liveSince = 0; HOUSE.liveStart = Date.now(); $("liveAge").textContent = "switching…"; } }
+});
+
+function renderStatus(d){
+  if(!d) return;
+  HOUSE.status = d;
+  const tv = d.tv, now = d.now || Date.now(), chips = [];
+  const tvOk = tv && now - tv.at < 3 * 60000;
+  chips.push("<span class='hchip " + (tvOk ? "ok" : "bad") + "'><i></i>📺 TV <small>" + (tv ? (tvOk ? "online" : "last seen " + agoText(now - tv.at)) : "not reporting yet") + "</small></span>");
+  if(tv){
+    const p = tv.pablo || "";
+    chips.push("<span class='hchip " + (p === "ok" && tvOk ? "ok" : "bad") + "' title='" + esc(p) + "'><i></i>🎩 Pablo <small>" + (p === "ok" ? "ready" : p === "not set up" ? "not set up" : "PC off") + "</small></span>");
+  }
+  const cam = d.cam || {};
+  chips.push("<button type='button' class='hchip " + (cam.on ? "ok" : "warn") + "' id='hsAlerts'><i></i>🔔 Alerts <small>" + esc(cam.on ? "on" : (cam.label || "off").replace("Muted until", "muted till")) + "</small></button>");
+  const L = d.lights || {};
+  if(tv && tv.lights !== false) chips.push("<button type='button' class='hchip " + (L.on ? "ok" : "") + "' id='hsLights'><i></i>🎄 Lights <small>" + (L.on === true ? "on" : L.on === false ? "off" : "?") + "</small></button>");
+  (tv && tv.cams || []).forEach(c => {
+    const cls = !c.online ? "bad" : c.bat >= 0 && c.bat < 20 ? "warn" : "ok";
+    chips.push("<span class='hchip " + cls + "'><i></i>" + esc(c.name) + " <small>" + (!c.online ? "offline" : c.bat >= 0 ? "🔋" + c.bat + "%" : "online") + "</small></span>");
+  });
+  if(tv && tv.hub === false && tv.hubErr) chips.push("<span class='hchip bad'><i></i>Hub <small>" + esc(tv.hubErr) + "</small></span>");
+  $("hsStrip").innerHTML = chips.join("");
+  $("hsSub").textContent = tv ? "Updated " + agoText(now - tv.at) + (tv.ver ? " · TV app " + tv.ver : "") : "The TV hasn't checked in yet — update My TV Home";
+  if(tv && tv.cams){ HOUSE.cams = tv.cams; renderCamSel(); }
+}
+async function pullStatus(){ try { renderStatus(await api({ action:"house", op:"status" })); } catch(e){} }
+$("hsStrip").addEventListener("click", async e => {
+  if(e.target.closest("#hsAlerts")){
+    const on = HOUSE.status && HOUSE.status.cam && HOUSE.status.cam.on;
+    try { const st = await api({ action:"doorbell", op:"camset", mode: on ? "off" : "on" }); renderCam(st); HOUSE.status.cam = st; renderStatus(HOUSE.status); } catch(err){}
+  } else if(e.target.closest("#hsLights")){
+    try { await shellyToggle(); } catch(err){}
+    setTimeout(pullStatus, 4000); setTimeout(pullStatus, 12000);
+  }
+});
+
+$("snapBtn").addEventListener("click", async () => {
+  if(HOUSE.busy) return; HOUSE.busy = true;
+  const msg = $("snapMsg"); msg.className = "hmsg"; msg.textContent = "Asking the TV…";
+  try {
+    const r = await houseJob({ kind:"snap", ch: HOUSE.ch }, msg);
+    renderPics($("snapGrid"), r.imgs);
+    msg.className = "hmsg" + (r.error && !(r.imgs || []).length ? " err" : "");
+    msg.textContent = (r.error ? r.error + " · " : "") + ((r.imgs || []).length ? "Taken " + tstr(Date.now()) + " · tap a picture to enlarge" : "");
+  } catch(e){ msg.className = "hmsg err"; msg.textContent = e.message; }
+  HOUSE.busy = false;
+});
+
+// Live view: the TV sends a fresh picture about every 1.5 s while we keep asking
+async function liveTick(){
+  if(!HOUSE.liveOn) return;
+  if(Date.now() - HOUSE.liveStart > 120000){ stopLive("Live view paused to save the camera's battery. Tap Live view to keep watching."); return; }
+  try {
+    const r = await api({ action:"house", op:"live", ch: HOUSE.ch, since: HOUSE.liveSince });
+    if(r.img){ $("liveImg").src = "data:image/jpeg;base64," + r.img; HOUSE.liveSince = r.at; }
+    if(r.at) $("liveAge").textContent = Math.max(0, Math.round((Date.now() - r.at) / 1000)) + " s ago";
+    else if(Date.now() - HOUSE.liveStart > 25000) $("liveAge").textContent = "the TV isn't sending — is it on?";
+  } catch(e){}
+  if(HOUSE.liveOn) HOUSE.liveTimer = setTimeout(liveTick, 1200);
+}
+function stopLive(why){
+  HOUSE.liveOn = false; clearTimeout(HOUSE.liveTimer);
+  $("liveBox").hidden = true; $("camLiveTag").hidden = true; $("liveBtn").textContent = "🔴 Live view";
+  $("snapMsg").className = "hmsg"; $("snapMsg").textContent = why || "";
+}
+$("liveBtn").addEventListener("click", () => {
+  if(HOUSE.liveOn){ stopLive(); return; }
+  if(HOUSE.ch < 0){ $("snapMsg").textContent = "Pick one camera first."; return; }
+  HOUSE.liveOn = true; HOUSE.liveSince = 0; HOUSE.liveStart = Date.now();
+  $("liveImg").removeAttribute("src"); $("liveAge").textContent = "waking the camera…";
+  $("liveBox").hidden = false; $("camLiveTag").hidden = false; $("liveBtn").textContent = "⏹ Stop live";
+  $("snapMsg").textContent = ""; liveTick();
+});
+$("liveStop").addEventListener("click", () => stopLive());
+async function liveCmd(params, label){
+  const msg = $("snapMsg"); msg.className = "hmsg"; msg.textContent = label + "…";
+  HOUSE.liveStart = Date.now();                      // a control counts as still watching
+  try { const r = await houseJob({ ch: HOUSE.ch, ...params }, null); msg.className = "hmsg" + (r.error ? " err" : ""); msg.textContent = r.error || r.text || "Done"; }
+  catch(e){ msg.className = "hmsg err"; msg.textContent = e.message; }
+}
+document.querySelectorAll("[data-ptz]").forEach(b => b.addEventListener("click", () => liveCmd({ kind:"ptz", dir: b.dataset.ptz }, "Turning " + b.dataset.ptz.toLowerCase())));
+document.querySelectorAll("[data-spot]").forEach(b => b.addEventListener("click", () => liveCmd({ kind:"spot", on: b.dataset.spot === "1" }, "Spotlight " + (b.dataset.spot === "1" ? "on" : "off"))));
+$("sirenBtn").addEventListener("click", () => {
+  const cam = HOUSE.cams.find(c => c.ch === HOUSE.ch);
+  if(confirm("Sound the siren on " + (cam ? cam.name : "this camera") + "? It's loud.")) liveCmd({ kind:"siren" }, "Sounding the siren");
+});
+
+// Ask Pablo / perimeter check
+async function askPablo(kind, q){
+  if(HOUSE.busy) return; HOUSE.busy = true;
+  const msg = $("pabloMsg"), ans = $("pabloAns");
+  msg.className = "hmsg"; msg.textContent = "Asking the TV…"; ans.hidden = true; $("pabloGrid").innerHTML = "";
+  try {
+    const r = await houseJob({ kind, q, ch: -1, look: kind === "perimeter" || $("pabloLook").checked }, msg);
+    if(r.text){ ans.textContent = "🎩 " + r.text; ans.hidden = false; }
+    renderPics($("pabloGrid"), r.imgs);
+    msg.className = "hmsg" + (r.error && !r.text ? " err" : ""); msg.textContent = r.error || "";
+  } catch(e){ msg.className = "hmsg err"; msg.textContent = e.message; }
+  HOUSE.busy = false;
+}
+$("pabloForm").addEventListener("submit", e => {
+  e.preventDefault(); const q = $("pabloQ").value.trim(); if(!q) return;
+  askPablo("pablo", q);
+});
+$("perimBtn").addEventListener("click", () => askPablo("perimeter", ""));
+setInterval(() => { if(!document.hidden && current === "door") pullStatus(); }, 60000);
 $("doorList").addEventListener("click", e => {
   const el = e.target.closest("[data-dimg]");
   if(el && DOOR_IMG[el.dataset.dimg]) window.open("https://drive.google.com/file/d/" + encodeURIComponent(el.dataset.dimg) + "/view", "_blank");
@@ -2092,7 +2310,8 @@ function showSection(id, opts = {}){
   $("nav").dataset.html = ""; renderNav(); renderDock();
   if(id === "weather") renderWeather();
   if(id === "pets" || id === "nap") renderLogs();
-  if(id === "door"){ renderDoor(); pullVisitors(); pullCam(); }
+  if(id === "door"){ renderDoor(); pullVisitors(); pullCam(); pullStatus(); }
+  else if(window.HOUSE && HOUSE.liveOn) stopLive();
   if(id === "lights") shellyStatus();
   if(!opts.keepScroll) $("stage").scrollTop = 0;
   if(isPhone() && opts.open){

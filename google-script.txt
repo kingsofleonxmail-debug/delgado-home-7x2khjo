@@ -87,6 +87,7 @@ function doPost(e) {
   }
   if (body.action === "doorbell") return handleDoorbell(body);   // before the log ops: it uses "op" too
   if (body.action === "shelly") return handleShelly(body);       // before the log ops: it uses "op" too
+  if (body.action === "house") return handleHouse(body);         // cameras + Pablo relay (uses "op" too)
   if (body.op && String(body.op).indexOf("shop") === 0) return handleShopOp(body);
   if (body.op && String(body.op).indexOf("shift") === 0) return handleShiftOp(body);
   if (body.op && String(body.op).indexOf("cd") === 0) return handleCountdownOp(body);
@@ -1520,4 +1521,105 @@ function cameraAlert(b) {
     props.setProperty("alert-log", JSON.stringify(log.slice(0, 15)));
   } catch (err) {}
   return { ok: out.indexOf("sent") >= 0, sent: out };
+}
+
+
+// ---------- House relay: camera snapshots, live view, Ask Pablo, status strip ----------
+// The dashboard can't reach the cameras or the gaming PC from outside the house, so it leaves a job here,
+// the TV (which is on the home network) picks it up every few seconds, does it, and posts the answer back.
+// Everything lives in CacheService (no daily quota like Properties) and expires on its own.
+const HOUSE_KINDS = ["snap", "pablo", "perimeter", "ptz", "spot", "siren"];
+
+function handleHouse(b) {
+  const cache = CacheService.getScriptCache();
+  const op = String(b.op || "");
+
+  // ---- from the dashboard ----
+  if (op === "ask") {
+    const kind = String(b.kind || "");
+    if (HOUSE_KINDS.indexOf(kind) < 0) return json({ error: "unknown job" });
+    const job = { id: Utilities.getUuid().slice(0, 8), kind: kind, at: Date.now(),
+                  ch: Number.isFinite(Number(b.ch)) ? Number(b.ch) : -1,
+                  q: String(b.q || "").slice(0, 400), dir: String(b.dir || "").slice(0, 8),
+                  on: !!b.on, look: b.look !== false };
+    const lock = LockService.getScriptLock(); lock.waitLock(5000);
+    try {
+      const q = JSON.parse(cache.get("house_q") || "[]").filter(function (j) { return Date.now() - j.at < 120000; });
+      q.push(job);
+      cache.put("house_q", JSON.stringify(q.slice(-10)), 600);
+    } finally { lock.releaseLock(); }
+    cache.put("house_r_" + job.id, JSON.stringify({ done: false, text: "Waiting for the TV…" }), 600);
+    return json({ id: job.id });
+  }
+  if (op === "get") {
+    const id = String(b.id || "");
+    const r = JSON.parse(cache.get("house_r_" + id) || "null");
+    if (!r) return json({ done: true, error: "That request expired. Try again." });
+    if (r.done && r.n) {
+      r.imgs = [];
+      for (let i = 0; i < r.n; i++) r.imgs.push({ label: (r.labels || [])[i] || "", img: houseGetBig(cache, "house_i_" + id + "_" + i) });
+    }
+    return json(r);
+  }
+  if (op === "live") {               // keep live frames coming from one camera for 20 more seconds
+    const ch = Number(b.ch) || 0;
+    cache.put("house_live", JSON.stringify({ ch: ch, until: Date.now() + 20000 }), 60);
+    const f = JSON.parse(cache.get("house_f_" + ch + "_meta") || "null");
+    if (f && Number(b.since || 0) >= f.at) return json({ at: f.at, same: true });
+    return json(f ? { at: f.at, img: houseGetBig(cache, "house_f_" + ch) } : { at: 0 });
+  }
+  if (op === "status") {
+    const hb = JSON.parse(cache.get("house_hb") || "null");
+    return json({ tv: hb, now: Date.now(), cam: camState(), lights: readShelly() });
+  }
+
+  // ---- from the TV ----
+  if (op === "poll") {
+    if (b.hb) cache.put("house_hb", JSON.stringify(Object.assign({ at: Date.now() }, b.hb)), 21600);
+    const lock = LockService.getScriptLock(); lock.waitLock(5000);
+    let jobs;
+    try {
+      jobs = JSON.parse(cache.get("house_q") || "[]").filter(function (j) { return Date.now() - j.at < 120000; });
+      if (jobs.length) cache.remove("house_q");
+    } finally { lock.releaseLock(); }
+    const live = JSON.parse(cache.get("house_live") || "null");
+    return json({ jobs: jobs, live: live && live.until > Date.now() ? live.ch : -1 });
+  }
+  if (op === "result") {
+    const id = String(b.id || "");
+    if (!id) return json({ error: "no id" });
+    const r = { done: !!b.done, text: String(b.text || "").slice(0, 2000), error: String(b.error || "").slice(0, 300) };
+    if (Array.isArray(b.imgs)) {
+      r.n = Math.min(b.imgs.length, 6); r.labels = [];
+      for (let i = 0; i < r.n; i++) {
+        r.labels.push(String(b.imgs[i].label || "").slice(0, 40));
+        housePutBig(cache, "house_i_" + id + "_" + i, String(b.imgs[i].img || ""), 600);
+      }
+    }
+    cache.put("house_r_" + id, JSON.stringify(r), 600);
+    return json({ ok: true });
+  }
+  if (op === "frame") {
+    const ch = Number(b.ch) || 0, at = Date.now();
+    housePutBig(cache, "house_f_" + ch, String(b.img || ""), 120);
+    cache.put("house_f_" + ch + "_meta", JSON.stringify({ at: at }), 120);
+    const live = JSON.parse(cache.get("house_live") || "null");
+    return json({ more: !!live && live.until > Date.now() && live.ch === ch });
+  }
+  return json({ error: "unknown op" });
+}
+
+// A cache value can be at most 100 KB, so pictures are kept in pieces
+function housePutBig(cache, key, s, secs) {
+  const parts = {}, size = 90000, n = Math.ceil(s.length / size);
+  for (let i = 0; i < n; i++) parts[key + "#" + i] = s.slice(i * size, (i + 1) * size);
+  parts[key + "#n"] = String(n);
+  cache.putAll(parts, secs);
+}
+function houseGetBig(cache, key) {
+  const n = Number(cache.get(key + "#n") || 0);
+  if (!n) return "";
+  const keys = []; for (let i = 0; i < n; i++) keys.push(key + "#" + i);
+  const got = cache.getAll(keys);
+  return keys.map(function (k) { return got[k] || ""; }).join("");
 }
